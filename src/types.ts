@@ -53,6 +53,33 @@ export interface WorkoutLog {
   end: number
   sets: SetLog[]
   note?: string
+  /** the 10-minute minimum plan */
+  minimum?: boolean
+  /** at least 75% of the plan's steps done */
+  complete?: boolean
+  /** self-rated effort, cardio days */
+  rating?: 'easy' | 'hard'
+  /** rest timer extensions (+15s taps) */
+  overruns?: number
+  /** XP-relevant results, computed when the workout is saved */
+  stats?: { beats: number; prs: number; cardioPR: boolean }
+}
+
+export interface ExtraCardio {
+  id: string
+  date: string
+  minutes: number
+  hard: boolean
+  ts: number
+}
+
+export interface FitnessCheck {
+  id: string
+  date: string
+  restingHr?: number
+  /** 1-mile time in seconds */
+  mileSec?: number
+  ts: number
 }
 
 export interface FoodEntry {
@@ -95,6 +122,8 @@ export interface AppState {
   workouts: WorkoutLog[]
   foods: FoodEntry[]
   weights: WeightEntry[]
+  cardio: ExtraCardio[]
+  checks: FitnessCheck[]
   /** in-progress workout, so a refresh doesn't lose it */
   active: ActiveWorkout | null
   /** ids of deleted foods/workouts, so sync doesn't bring them back */
@@ -112,4 +141,5 @@ export interface ActiveWorkout {
   step: number
   sets: SetLog[]
   skipped: number[]
+  overruns?: number
 }

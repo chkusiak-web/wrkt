@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Profile, Sex } from '../types'
 import { setState } from '../lib/store'
-import { dayKey } from '../lib/date'
+import { today } from '../lib/date'
 import { targets } from '../lib/progress'
 import { Card, Seg } from '../components/ui'
 import type { Session } from '@supabase/supabase-js'
@@ -79,7 +79,7 @@ export default function Onboarding({ session }: { session: Session | null }) {
       <ProfileForm
         cta="Start"
         onSave={(p) =>
-          setState((s) => ({ ...s, profile: p, weights: s.weights.length ? s.weights : [{ date: dayKey(), lbs: p.startWeight }] }))
+          setState((s) => ({ ...s, profile: p, weights: s.weights.length ? s.weights : [{ date: today(), lbs: p.startWeight }] }))
         }
       />
     </div>

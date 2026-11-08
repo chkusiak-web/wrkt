@@ -5,10 +5,12 @@
   --line: #2a313d;
   --text: #eef1f5;
   --muted: #8b95a5;
-  --accent: #ff6b35;
-  --accent2: #3dd6a0;
-  --warn: #ff4d6d;
-  --good: #3dd6a0;
+  /* level color family (Ember by default; the phoenix's level swaps these) */
+  --l0: #3E100A; --l1: #F2361B; --l2: #FF6A3D; --l3: #FFC23D; --l4: #FFF1D6;
+  --accent: var(--l2);
+  --accent2: var(--l3);
+  --warn: #FF4D7A;
+  --good: var(--l3);
   color-scheme: dark;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -100,7 +102,7 @@ details.card[open] summary { margin-bottom: 8px; }
 .target { display: flex; gap: 10px; }
 .target > div { flex: 1; background: var(--card2); border-radius: 12px; padding: 10px; font-size: 1.15rem; }
 .timer-big { text-align: center; display: flex; flex-direction: column; gap: 10px; padding: 18px 16px; border-radius: 18px; }
-.timer-big.work { background: linear-gradient(160deg, #ff6b35, #c2372a); }
+.timer-big.work { background: linear-gradient(160deg, var(--l2), var(--l1)); }
 .timer-big.rest { background: var(--card); border: 1px solid var(--line); }
 .timer-big.work .muted { color: rgba(255, 255, 255, 0.85); }
 .phase-label { font-weight: 800; letter-spacing: 0.2em; }
@@ -122,3 +124,15 @@ details.card[open] summary { margin-bottom: 8px; }
 .chart .line { fill: none; stroke: var(--accent); stroke-width: 2.5; }
 .chart .axis { fill: var(--muted); font-size: 10px; }
 .card-head + .food-row, h2 + .hit { border-top: none; }
+
+.roost { width: 100%; aspect-ratio: 128 / 86; image-rendering: pixelated; display: block; border-radius: 14px; background: #0a090b; }
+.phoenix-card { padding: 0; overflow: hidden; }
+.phoenix-card .pc-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.lv-name { font-size: 1.3rem; font-weight: 800; color: var(--l3); }
+.xp-items { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; }
+.xp-items li { display: flex; justify-content: space-between; padding: 3px 0; color: var(--muted); }
+.xp-items b { color: var(--l3); }
+.alert { border-radius: 10px; padding: 8px 10px; background: var(--card2); font-size: 0.9rem; }
+.alert.ash { border: 1px solid var(--warn); }
+.overlay { position: fixed; inset: 0; background: rgba(10,9,11,.85); display: grid; place-items: center; z-index: 50; padding: 24px; }
+.overlay .card { max-width: 360px; width: 100%; text-align: center; display: flex; flex-direction: column; gap: 10px; }

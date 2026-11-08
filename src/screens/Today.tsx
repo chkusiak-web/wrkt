@@ -1,24 +1,28 @@
 import { useMemo, useState } from 'react'
 import { setState, useStore } from '../lib/store'
-import { addDays, dayKey, parseDay } from '../lib/date'
-import { bestStreak, currentWeight, foodStreak, streak, targets } from '../lib/progress'
-import { nextPlanId, planById } from '../lib/plans'
-import { Bar, Card } from '../components/ui'
+import { addDays, today as todayKey, parseDay, fmtDay, uid } from '../lib/date'
+import { currentWeight, foodStreak, targets } from '../lib/progress'
+import { suggestedPlanId, planById } from '../lib/plans'
+import { usePhoenix } from '../lib/usePhoenix'
+import { LEVELS, UPKEEP, type PhoenixState } from '../lib/xp'
+import { unlockAudio } from '../lib/fx'
+import { Bar, Card, Seg, Stepper } from '../components/ui'
+import Roost from '../components/Roost'
 import type { Tab } from '../App'
 
 export default function Today({ go }: { go: (t: Tab) => void }) {
   const state = useStore((s) => s)
   const { profile, workouts, foods, weights } = state
-  const today = dayKey()
-  const st = useMemo(() => streak(workouts), [workouts])
-  const best = useMemo(() => bestStreak(workouts), [workouts])
+  const today = todayKey()
+  const p = usePhoenix()
+  const doneToday = workouts.some((w) => w.date === today)
   const fStreak = useMemo(() => foodStreak(state), [state])
   const weight = currentWeight(state)
   const t = profile ? targets(profile, weight) : null
   const eaten = foods.filter((f) => f.date === today)
   const kcal = eaten.reduce((a, f) => a + f.kcal, 0)
   const protein = eaten.reduce((a, f) => a + f.protein, 0)
-  const next = planById(nextPlanId(workouts[workouts.length - 1]?.planId))
+  const next = planById(suggestedPlanId(workouts))
   const todayWeight = weights.find((w) => w.date === today)
   const [wInput, setWInput] = useState('')
   const lost = profile ? profile.startWeight - weight : 0
@@ -36,13 +40,7 @@ export default function Today({ go }: { go: (t: Tab) => void }) {
 
   return (
     <div className="screen">
-      <div className="streak-hero">
-        <div className={`flame ${st.doneToday ? '' : 'dim'}`}>🔥 {st.count}</div>
-        <div>
-          <div className="big">{st.count} day streak</div>
-          <div className="muted small">{st.doneToday ? 'Done today. Nice.' : st.count ? "Don't break it. Even an easy day counts." : 'Start your streak today.'} Best: {best}</div>
-        </div>
-      </div>
+      <PhoenixCard p={p} />
       <div className="week">
         {week.map((d) => (
           <div key={d} className={`day ${days.has(d) ? 'on' : ''} ${d === today ? 'today' : ''}`}>
@@ -56,14 +54,19 @@ export default function Today({ go }: { go: (t: Tab) => void }) {
           <h2>Workout in progress</h2>
           <button className="primary big-btn" onClick={() => go('workout')}>Resume</button>
         </Card>
-      ) : !st.doneToday ? (
+      ) : !doneToday ? (
         <Card className="highlight">
-          <div className="tag">Today</div>
+          <div className="tag">Today · feeds the phoenix 100 XP</div>
           <h2>{next.name}</h2>
           <p className="muted">{next.blurb}</p>
           <button className="primary big-btn" onClick={() => go('workout')}>Start workout</button>
+          <button className="ghost" style={{ width: '100%', marginTop: 6 }} onClick={() => startMinimum(go)}>
+            Short on time? 10-min minimum (40 XP)
+          </button>
         </Card>
       ) : null}
+
+      <ExtraCardio />
 
       {t && (
         <Card>
@@ -98,5 +101,92 @@ export default function Today({ go }: { go: (t: Tab) => void }) {
         )}
       </Card>
     </div>
+  )
+}
+
+function startMinimum(go: (t: Tab) => void) {
+  unlockAudio()
+  setState((s) => ({
+    ...s,
+    active: { planId: 'minimum', equipment: s.profile?.equipment ?? 'gym', start: Date.now(), step: 0, sets: [], skipped: [] },
+  }))
+  go('workout')
+}
+
+function PhoenixCard({ p }: { p: PhoenixState }) {
+  const lv = LEVELS[p.level]
+  const fed = Math.min(UPKEEP, p.today.total)
+  const isTop = p.level === LEVELS.length - 1
+  const coverDays = Math.floor(p.bank / UPKEEP)
+  return (
+    <Card className="phoenix-card">
+      <Roost p={p} />
+      <div className="pc-body">
+        <div className="card-head">
+          <span className="lv-name">{p.started ? lv.name : 'Egg'}</span>
+          <span className="muted small">Level {p.level + 1} of {LEVELS.length}</span>
+        </div>
+        {!p.started && <div className="alert">Your phoenix hatches when you finish your first workout.</div>}
+        {p.ash && <div className="alert ash">Your phoenix burned to ash. Do at least a 10-min workout today to make it rise again.</div>}
+        {p.safeThrough && <div className="alert">New level! Protected from burning until {fmtDay(p.safeThrough)}.</div>}
+        <Bar label="Feed today" value={fed} max={UPKEEP} right={`${fed} / ${UPKEEP} XP`} />
+        {!isTop && <Bar label="Bank → next level" value={p.bank} max={lv.next} color="var(--l3)" right={`${p.bank.toLocaleString()} / ${lv.next.toLocaleString()}`} />}
+        {p.started && !p.ash && (
+          <div className="muted small">
+            {p.today.total > UPKEEP
+              ? `+${p.today.total - UPKEEP} to the bank today.`
+              : coverDays > 0
+                ? `Bank covers ${coverDays} missed day${coverDays > 1 ? 's' : ''}.`
+                : 'Bank is empty. Miss a day and it burns.'}
+            {p.bigDay ? ' Big day ✨' : ''}
+          </div>
+        )}
+        {p.today.items.length > 0 && (
+          <ul className="xp-items">
+            {p.today.items.map((i, k) => (
+              <li key={k}><span>{i.label}</span><b>+{i.xp}</b></li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+function ExtraCardio() {
+  const cardio = useStore((s) => s.cardio)
+  const today = todayKey()
+  const [open, setOpen] = useState(false)
+  const [mins, setMins] = useState(20)
+  const [hard, setHard] = useState(false)
+  const mine = (cardio ?? []).filter((c) => c.date === today)
+  const log = () => {
+    setState((s) => ({ ...s, cardio: [...(s.cardio ?? []), { id: uid(), date: today, minutes: mins, hard, ts: Date.now() }] }))
+    setOpen(false)
+  }
+  return (
+    <Card>
+      <div className="card-head">
+        <h2>Extra cardio</h2>
+        {!open && <button className="small-btn" onClick={() => setOpen(true)}>+ Log</button>}
+      </div>
+      <div className="muted small">Walks, rides, runs past your plan. 5 XP/min easy, 8 XP/min hard.</div>
+      {open && (
+        <div className="stack" style={{ marginTop: 8 }}>
+          <Stepper label="minutes" value={mins} onChange={setMins} step={5} />
+          <Seg options={[{ value: 'easy', label: 'Easy' }, { value: 'hard', label: 'Hard' }]} value={hard ? 'hard' : 'easy'} onChange={(v) => setHard(v === 'hard')} />
+          <div className="row">
+            <button className="ghost" onClick={() => setOpen(false)}>Cancel</button>
+            <button className="primary" disabled={!mins} onClick={log}>Log +{mins * (hard ? 8 : 5)} XP</button>
+          </div>
+        </div>
+      )}
+      {mine.map((c) => (
+        <div className="food-row" key={c.id}>
+          <span>{c.minutes} min {c.hard ? 'hard' : 'easy'}</span>
+          <button className="ghost small-btn" aria-label="delete" onClick={() => setState((s) => ({ ...s, cardio: s.cardio.filter((x) => x.id !== c.id), deleted: [...(s.deleted ?? []), c.id] }))}>✕</button>
+        </div>
+      ))}
+    </Card>
   )
 }

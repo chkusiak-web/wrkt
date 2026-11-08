@@ -25,3 +25,15 @@ export const fmtClock = (sec: number) => {
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
+
+/** The app's day runs 4am to 4am, so a late-night snack or workout counts for the day before. */
+export const DAY_START_HOURS = 4
+export const today = (ts: number = Date.now()) => dayKey(new Date(ts - DAY_START_HOURS * 3600_000))
+
+/** Monday of the week containing day k. */
+export const weekStart = (k: string) => {
+  const dow = (parseDay(k).getDay() + 6) % 7
+  return addDays(k, -dow)
+}
+
+export const daysBetween = (a: string, b: string) => Math.round((parseDay(b).getTime() - parseDay(a).getTime()) / 86400000)

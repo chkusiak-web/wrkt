@@ -1,8 +1,12 @@
 import { useMemo } from 'react'
 import type { Equipment } from '../types'
 import { setState, useStore } from '../lib/store'
-import { addDays, dayKey, fmtDay, parseDay } from '../lib/date'
-import { bestStreak, personalRecords, streak, weightTrend } from '../lib/progress'
+import { addDays, today as todayKey, fmtDay, parseDay } from '../lib/date'
+import { personalRecords, weightTrend } from '../lib/progress'
+import { usePhoenix } from '../lib/usePhoenix'
+import { LEVELS } from '../lib/xp'
+import { daysBetween, uid } from '../lib/date'
+import { useState } from 'react'
 import { PLANS, planSteps } from '../lib/plans'
 import { Card } from '../components/ui'
 
@@ -15,9 +19,8 @@ export default function Progress() {
   const { workouts, weights, foods, profile } = state
   const trend = useMemo(() => weightTrend(weights), [weights])
   const prs = useMemo(() => Object.values(personalRecords(workouts)).sort((a, b) => b.date.localeCompare(a.date)), [workouts])
-  const st = streak(workouts)
-  const best = bestStreak(workouts)
-  const today = dayKey()
+  const ph = usePhoenix()
+  const today = todayKey()
   const weekAgo = addDays(today, -6)
   const weekWorkouts = workouts.filter((w) => w.date >= weekAgo).length
   const weekMinutes = Math.round(workouts.filter((w) => w.date >= weekAgo).reduce((a, w) => a + (w.end - w.start) / 60000, 0))
@@ -54,8 +57,10 @@ export default function Progress() {
         <div className="stat-row"><span>Workouts</span><b>{weekWorkouts} / 7</b></div>
         <div className="stat-row"><span>Training time</span><b>{weekMinutes} min</b></div>
         <div className="stat-row"><span>Avg calories (logged days)</span><b>{avgKcal || '—'}</b></div>
-        <div className="stat-row"><span>Streak · best</span><b>🔥 {st.count} · {best}</b></div>
+        <div className="stat-row"><span>Phoenix</span><b>{LEVELS[ph.level].name} · {ph.lifetime.toLocaleString()} XP all-time</b></div>
       </Card>
+
+      <FitnessCheckCard />
 
       {prs.length > 0 && (
         <Card>
@@ -120,5 +125,46 @@ function WeightChart({ data, goal }: { data: { date: string; lbs: number; avg: n
       <text x={pad} y={H - 2} className="axis">{fmtDay(data[0].date)}</text>
       <text x={W - 8} y={H - 2} className="axis" textAnchor="end">{fmtDay(data[data.length - 1].date)}</text>
     </svg>
+  )
+}
+
+function FitnessCheckCard() {
+  const checks = useStore((s) => s.checks ?? [])
+  const [hr, setHr] = useState('')
+  const [mile, setMile] = useState('')
+  const last = [...checks].sort((a, b) => a.date.localeCompare(b.date)).at(-1)
+  const today = todayKey()
+  const due = !last || daysBetween(last.date, today) >= 28
+  const fmtMile = (s?: number) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '—')
+  const parseMile = (v: string) => {
+    const [m, sec] = v.split(':').map(Number)
+    return v.includes(':') ? m * 60 + (sec || 0) : Math.round(Number(v) * 60)
+  }
+  const save = () => {
+    const restingHr = Number(hr) || undefined
+    const mileSec = mile ? parseMile(mile) || undefined : undefined
+    if (!restingHr && !mileSec) return
+    setState((s) => ({ ...s, checks: [...(s.checks ?? []), { id: uid(), date: today, restingHr, mileSec, ts: Date.now() }] }))
+    setHr('')
+    setMile('')
+  }
+  return (
+    <Card className={due ? 'highlight' : ''}>
+      <h2>4-week fitness check</h2>
+      <p className="muted small">
+        Resting heart rate (count for 60 sec right after waking) and a timed mile. Beat your last check = +200 XP.
+        {last && ` Last: ${fmtDay(last.date)} · ${last.restingHr ?? '—'} bpm · mile ${fmtMile(last.mileSec)}.`}
+        {!due && last && ` Next one due ${fmtDay(addDays(last.date, 28))}.`}
+      </p>
+      {due && (
+        <>
+          <div className="row">
+            <div><label>Resting HR</label><input inputMode="numeric" placeholder="bpm" value={hr} onChange={(e) => setHr(e.target.value)} /></div>
+            <div><label>Mile time</label><input inputMode="decimal" placeholder="mm:ss" value={mile} onChange={(e) => setMile(e.target.value)} /></div>
+          </div>
+          <button className="primary" style={{ marginTop: 8, width: '100%' }} onClick={save}>Save check</button>
+        </>
+      )}
+    </Card>
   )
 }

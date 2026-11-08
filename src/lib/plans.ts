@@ -119,10 +119,19 @@ export const PLANS: Plan[] = [
   },
 ]
 
+/** Not in the rotation: the bare minimum for a busy day. Keeps the phoenix alive (40 XP), the bank covers the rest. */
+export const MINIMUM: Plan = {
+  id: 'minimum',
+  name: '10-Min Minimum',
+  type: 'strength',
+  blurb: 'Busy day? Two quick supersets and a finisher. Worth 40 XP.',
+  blocks: [b(['squat', 'hpush'], 2, 8, 12, 30), b(['finisher'], 4, 0, 0, 20, 20)],
+}
+
 /** Rotation: A, cardio, B, easy, repeat. */
 export const ROTATION = ['strength-a', 'conditioning', 'strength-b', 'easy']
 
-export const planById = (id: string) => PLANS.find((p) => p.id === id) ?? PLANS[0]
+export const planById = (id: string) => (id === MINIMUM.id ? MINIMUM : (PLANS.find((p) => p.id === id) ?? PLANS[0]))
 
 export const exerciseFor = (slot: string, eq: Equipment): Exercise => SLOTS[slot][eq]
 
@@ -149,7 +158,11 @@ export function planSteps(plan: Plan, eq: Equipment): Step[] {
 }
 
 export function nextPlanId(lastPlanId: string | undefined) {
-  if (!lastPlanId) return ROTATION[0]
+  if (!lastPlanId || !ROTATION.includes(lastPlanId)) return ROTATION[0]
   const i = ROTATION.indexOf(lastPlanId)
   return ROTATION[(i + 1) % ROTATION.length]
 }
+
+/** Next plan in the rotation, ignoring minimum days. */
+export const suggestedPlanId = (workouts: { planId: string }[]) =>
+  nextPlanId([...workouts].reverse().find((w) => ROTATION.includes(w.planId))?.planId)

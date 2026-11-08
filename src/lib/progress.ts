@@ -1,5 +1,5 @@
 import type { AppState, Exercise, PlanBlock, Profile, SetLog, WorkoutLog } from '../types'
-import { addDays, dayKey } from './date'
+import { addDays, today } from './date'
 
 /** Sets from the most recent workout that included this exercise. */
 export function lastSetsFor(workouts: WorkoutLog[], exerciseId: string): SetLog[] {
@@ -82,14 +82,14 @@ export const volume = (sets: SetLog[]) => sets.reduce((a, s) => a + (s.weight ||
 /** Consecutive days with a completed workout, counting back from today (or yesterday if today isn't done yet). */
 export function streak(workouts: WorkoutLog[]) {
   const days = new Set(workouts.map((w) => w.date))
-  let d = dayKey()
+  let d = today()
   if (!days.has(d)) d = addDays(d, -1)
   let n = 0
   while (days.has(d)) {
     n++
     d = addDays(d, -1)
   }
-  return { count: n, doneToday: days.has(dayKey()) }
+  return { count: n, doneToday: days.has(today()) }
 }
 
 export function bestStreak(workouts: WorkoutLog[]) {
@@ -107,7 +107,7 @@ export function bestStreak(workouts: WorkoutLog[]) {
 
 export function foodStreak(state: AppState) {
   const days = new Set(state.foods.map((f) => f.date))
-  let d = dayKey()
+  let d = today()
   if (!days.has(d)) d = addDays(d, -1)
   let n = 0
   while (days.has(d)) {

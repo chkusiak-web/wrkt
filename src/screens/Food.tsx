@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FoodEntry, Meal } from '../types'
 import { setState, useStore } from '../lib/store'
-import { addDays, dayKey, fmtDay, uid } from '../lib/date'
+import { addDays, today, fmtDay, uid } from '../lib/date'
 import { currentWeight, targets } from '../lib/progress'
 import { lookupBarcode, scale, searchUSDA, type FoodHit } from '../lib/food'
 import { Bar, Card, Seg, Stepper } from '../components/ui'
@@ -22,7 +22,7 @@ type Mode = { kind: 'list' } | { kind: 'add' } | { kind: 'pick'; hit: FoodHit } 
 
 export default function Food() {
   const state = useStore((s) => s)
-  const [date, setDate] = useState(dayKey())
+  const [date, setDate] = useState(today())
   const [mode, setMode] = useState<Mode>({ kind: 'list' })
   const [meal, setMeal] = useState<Meal>(guessMeal())
   const entries = state.foods.filter((f) => f.date === date)
@@ -44,8 +44,8 @@ export default function Food() {
     <div className="screen">
       <div className="card-head">
         <button className="ghost" onClick={() => setDate(addDays(date, -1))}>‹</button>
-        <h1>{date === dayKey() ? 'Today' : fmtDay(date)}</h1>
-        <button className="ghost" disabled={date >= dayKey()} onClick={() => setDate(addDays(date, 1))}>›</button>
+        <h1>{date === today() ? 'Today' : fmtDay(date)}</h1>
+        <button className="ghost" disabled={date >= today()} onClick={() => setDate(addDays(date, 1))}>›</button>
       </div>
       {t && (
         <Card>

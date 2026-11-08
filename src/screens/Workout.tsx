@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ActiveWorkout, Equipment, SetLog, WorkoutLog } from '../types'
+import type { ActiveWorkout, Equipment, ExerciseKind, SetLog, WorkoutLog } from '../types'
 import { getState, setState, useStore } from '../lib/store'
-import { PLANS, nextPlanId, planById, planSteps, type Step } from '../lib/plans'
-import { targetFor, newPRs, volume, streak } from '../lib/progress'
-import { dayKey, fmtClock, uid } from '../lib/date'
+import { MINIMUM, PLANS, suggestedPlanId, planById, planSteps, type Step } from '../lib/plans'
+import { targetFor, newPRs, volume, lastSetsFor, e1rm } from '../lib/progress'
+import { usePhoenix } from '../lib/usePhoenix'
+import { UPKEEP, workoutBonuses, workoutUpkeep } from '../lib/xp'
+import { today, fmtClock, uid } from '../lib/date'
 import { beep, keepAwake, unlockAudio } from '../lib/fx'
 import { useNow } from '../lib/useNow'
 import { Card, Seg, Stepper } from '../components/ui'
@@ -28,7 +30,7 @@ function Picker() {
   const workouts = useStore((s) => s.workouts)
   const profile = useStore((s) => s.profile)
   const [eq, setEq] = useState<Equipment>(profile?.equipment ?? 'gym')
-  const suggested = nextPlanId(workouts[workouts.length - 1]?.planId)
+  const suggested = suggestedPlanId(workouts)
 
   const start = (planId: string) => {
     unlockAudio()
@@ -61,6 +63,12 @@ function Picker() {
             <button className={p.id === suggested ? 'primary' : ''} onClick={() => start(p.id)}>Start</button>
           </Card>
         ))}
+        <Card>
+          <div className="tag">Short on time?</div>
+          <h2>{MINIMUM.name}</h2>
+          <p className="muted">{MINIMUM.blurb}</p>
+          <button onClick={() => start(MINIMUM.id)}>Start</button>
+        </Card>
       </div>
     </div>
   )
@@ -137,9 +145,15 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
   const finish = () => {
     const a = getState().active
     if (!a) return
+    const prior = getState().workouts
+    const kinds = new Map(steps.map((st) => [st.exercise.id, st.exercise] as const))
     const log: WorkoutLog = {
-      id: uid(), date: dayKey(), planId: plan.id, planName: plan.name, type: plan.type, equipment: a.equipment,
+      id: uid(), date: today(a.start), planId: plan.id, planName: plan.name, type: plan.type, equipment: a.equipment,
       start: a.start, end: Date.now(), sets: a.sets,
+      minimum: plan.id === MINIMUM.id,
+      complete: a.sets.length >= steps.length * 0.75,
+      overruns: a.overruns ?? 0,
+      stats: workoutStats(prior, a.sets, (id) => kinds.get(id)?.kind, (id) => kinds.get(id)?.unit),
     }
     setState((s) => ({ ...s, active: null, workouts: [...s.workouts, log] }))
     onFinish(log)
@@ -214,7 +228,14 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
             </div>
           )}
           <div className="row">
-            <button onClick={() => setPhase({ ...phase, endAt: phase.endAt + 15000 })}>+15s</button>
+            <button
+              onClick={() => {
+                update((a) => ({ ...a, overruns: (a.overruns ?? 0) + 1 }))
+                setPhase({ ...phase, endAt: phase.endAt + 15000 })
+              }}
+            >
+              +15s
+            </button>
             <button className="primary" onClick={() => setPhase({ ...phase, endAt: Date.now() })}>Skip rest</button>
           </div>
         </div>
@@ -269,6 +290,29 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
   )
 }
 
+/** Sets that beat last time, lifting PRs, and whether interval totals set a record. */
+function workoutStats(prior: WorkoutLog[], sets: SetLog[], kindOf: (id: string) => ExerciseKind | undefined, unitOf: (id: string) => string | undefined) {
+  let beats = 0
+  const seen = new Map<string, number>()
+  for (const s of sets) {
+    const i = seen.get(s.exerciseId) ?? 0
+    seen.set(s.exerciseId, i + 1)
+    const prev = lastSetsFor(prior, s.exerciseId)[i]
+    if (!prev || kindOf(s.exerciseId) === 'cardio' || unitOf(s.exerciseId) === 'level') continue
+    if (e1rm(s.weight, s.reps) > e1rm(prev.weight, prev.reps)) beats++
+  }
+  const liftSets = sets.filter((s) => ['weighted', 'reps', 'hold'].includes(kindOf(s.exerciseId) ?? ''))
+  const prs = newPRs(prior, liftSets).length
+  let cardioPR = false
+  const intervalIds = new Set(sets.filter((s) => kindOf(s.exerciseId) === 'interval' && unitOf(s.exerciseId) !== 'level').map((s) => s.exerciseId))
+  for (const id of intervalIds) {
+    const total = sets.filter((s) => s.exerciseId === id).reduce((a, s) => a + s.reps, 0)
+    const best = Math.max(0, ...prior.map((w) => w.sets.filter((s) => s.exerciseId === id).reduce((a, s) => a + s.reps, 0)))
+    if (best > 0 && total > best) cardioPR = true
+  }
+  return { beats, prs, cardioPR }
+}
+
 function nextIndex(steps: Step[], from: number, skipped: number[]) {
   let i = from
   while (i < steps.length && skipped.includes(i)) i++
@@ -279,21 +323,39 @@ function fmtSet(s: Pick<SetLog, 'weight' | 'reps'>, weighted: boolean, unit: str
   return weighted && s.weight ? `${s.weight} lb × ${s.reps}` : `${s.reps} ${unit}`
 }
 
-function Summary({ log, onClose }: { log: WorkoutLog; onClose: () => void }) {
+function Summary({ log: initial, onClose }: { log: WorkoutLog; onClose: () => void }) {
   const all = useStore((s) => s.workouts)
-  const prior = all.filter((w) => w.id !== log.id)
+  const log = all.find((w) => w.id === initial.id) ?? initial
+  const p = usePhoenix()
+  const prior = all.filter((w) => w.id !== log.id && w.start < log.start)
   const prs = newPRs(prior, log.sets)
   const lastSame = [...prior].reverse().find((w) => w.planId === log.planId)
   const vol = volume(log.sets)
   const lastVol = lastSame ? volume(lastSame.sets) : 0
   const mins = (log.end - log.start) / 60000
-  const st = streak(all)
-  const names = new Map(PLANS.flatMap((p) => (['gym', 'dumbbells', 'bodyweight'] as Equipment[]).flatMap((eq) => planSteps(p, eq).map((s) => [s.exercise.id, s.exercise.name] as const))))
+  const names = new Map([...PLANS, MINIMUM].flatMap((pl) => (['gym', 'dumbbells', 'bodyweight'] as Equipment[]).flatMap((eq) => planSteps(pl, eq).map((s) => [s.exercise.id, s.exercise.name] as const))))
+  const upkeep = workoutUpkeep(log)
+  const items = [...(upkeep ? [{ label: upkeep === 100 ? 'Workout done' : '10-min minimum', xp: upkeep }] : []), ...workoutBonuses(log)]
+  const earned = items.reduce((a, i) => a + i.xp, 0)
+  const rate = (r: 'easy' | 'hard') => setState((s) => ({ ...s, workouts: s.workouts.map((w) => (w.id === log.id ? { ...w, rating: r } : w)) }))
 
   return (
     <div className="screen center">
-      <div className="flame">🔥 {st.count}</div>
-      <h1>{st.count > 1 ? `${st.count}-day streak!` : 'Streak started!'}</h1>
+      <div className="flame">+{earned} XP</div>
+      <h1>{p.today.total >= UPKEEP ? 'Phoenix fed 🔥' : `Phoenix fed ${p.today.total}/${UPKEEP}`}</h1>
+      {(log.type === 'conditioning' || log.type === 'easy') && (
+        <Card>
+          <h2>How hard was that?</h2>
+          <Seg options={[{ value: 'easy', label: 'Easy' }, { value: 'hard', label: 'Hard (+30 XP)' }]} value={log.rating ?? ('' as 'easy')} onChange={rate} />
+        </Card>
+      )}
+      <Card>
+        <ul className="xp-items">
+          {items.map((i, k) => (
+            <li key={k}><span>{i.label}</span><b>+{i.xp}</b></li>
+          ))}
+        </ul>
+      </Card>
       <Card>
         <div className="stat-row"><span>Time</span><b className={mins <= GOAL_MIN ? 'good' : ''}>{fmtClock(mins * 60)}</b></div>
         <div className="stat-row"><span>Sets</span><b>{log.sets.length}</b></div>
@@ -310,8 +372,8 @@ function Summary({ log, onClose }: { log: WorkoutLog; onClose: () => void }) {
       {prs.length > 0 && (
         <Card className="highlight">
           <h2>🏆 New records</h2>
-          {prs.map((p) => (
-            <div key={p.exerciseId}>{names.get(p.exerciseId) ?? p.exerciseId}: {p.weight ? `${p.weight} lb × ${p.reps}` : p.reps}</div>
+          {prs.map((pr) => (
+            <div key={pr.exerciseId}>{names.get(pr.exerciseId) ?? pr.exerciseId}: {pr.weight ? `${pr.weight} lb × ${pr.reps}` : pr.reps}</div>
           ))}
         </Card>
       )}
