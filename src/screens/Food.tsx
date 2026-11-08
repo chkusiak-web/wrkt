@@ -4,6 +4,7 @@ import { setState, useStore } from '../lib/store'
 import { addDays, today, fmtDay, uid } from '../lib/date'
 import { currentWeight, targets } from '../lib/progress'
 import { lookupBarcode, scale, searchUSDA, type FoodHit } from '../lib/food'
+import { loadOfflineFoods, searchOffline } from '../lib/offlineFoods'
 import { Bar, Card, Seg, Stepper } from '../components/ui'
 
 const MEALS: { value: Meal; label: string }[] = [
@@ -87,6 +88,13 @@ function Search({ onPick, onQuick, onScan, onBack, onRelog }: { onPick: (h: Food
   const [hits, setHits] = useState<FoodHit[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    void loadOfflineFoods().then(() => setReady(true))
+  }, [])
+  // instant results from the bundled USDA list, no internet needed
+  const local = useMemo(() => (ready && q.trim().length >= 2 ? searchOffline(q) : []), [ready, q])
 
   // recent unique foods, most recent first
   const recent = useMemo(() => {
@@ -109,7 +117,7 @@ function Search({ onPick, onQuick, onScan, onBack, onRelog }: { onPick: (h: Food
     try {
       setHits(await searchUSDA(q.trim(), key))
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Search failed')
+      setErr(navigator.onLine ? (e instanceof Error ? e.message : 'Search failed') : 'Offline. Showing foods saved on your phone.')
     } finally {
       setBusy(false)
     }
@@ -126,15 +134,26 @@ function Search({ onPick, onQuick, onScan, onBack, onRelog }: { onPick: (h: Food
       </div>
       <form className="row" onSubmit={(e) => { e.preventDefault(); void run() }}>
         <input autoFocus placeholder="Search foods (e.g. chicken breast)" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className="primary" type="submit">{busy ? '…' : 'Search'}</button>
+        <button className="primary" type="submit">{busy ? '…' : 'More'}</button>
       </form>
       <div className="row">
         <button onClick={onScan}>📷 Scan barcode</button>
         <button onClick={onQuick}>⚡ Quick add</button>
       </div>
       {err && <div className="warn">{err}</div>}
+      {local.length > 0 && (
+        <Card>
+          {local.map((h) => (
+            <button key={h.id} className="hit" onClick={() => onPick(h)}>
+              <div>{h.name}</div>
+              <div className="muted small">{h.per100.kcal} kcal · {h.per100.protein} g protein per 100 g</div>
+            </button>
+          ))}
+        </Card>
+      )}
       {hits.length > 0 && (
         <Card>
+          <h2>Online</h2>
           {hits.map((h) => (
             <button key={h.id} className="hit" onClick={() => onPick(h)}>
               <div>{h.name}</div>
