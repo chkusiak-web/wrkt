@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { setState, useStore } from '../lib/store'
 import { addDays, today as todayKey, parseDay, fmtDay, uid } from '../lib/date'
 import { currentWeight, foodStreak, targets } from '../lib/progress'
-import { suggestedPlanId, planById } from '../lib/plans'
+import { suggest } from '../lib/coach'
 import { usePhoenix } from '../lib/usePhoenix'
 import { LEVELS, UPKEEP, type PhoenixState } from '../lib/xp'
 import { unlockAudio } from '../lib/fx'
@@ -22,7 +22,7 @@ export default function Today({ go }: { go: (t: Tab) => void }) {
   const eaten = foods.filter((f) => f.date === today)
   const kcal = eaten.reduce((a, f) => a + f.kcal, 0)
   const protein = eaten.reduce((a, f) => a + f.protein, 0)
-  const next = planById(suggestedPlanId(workouts, profile?.rotation))
+  const next = useMemo(() => suggest(state).plan, [state])
   const todayWeight = weights.find((w) => w.date === today)
   const [wInput, setWInput] = useState('')
   const lost = profile ? profile.startWeight - weight : 0

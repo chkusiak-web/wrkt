@@ -3,6 +3,9 @@ export type Sex = 'male' | 'female'
 export type Meal = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 export type WorkoutType = 'strength' | 'conditioning' | 'easy'
 
+export const MUSCLES = ['quads', 'hamstrings', 'glutes', 'calves', 'chest', 'back', 'shoulders', 'biceps', 'triceps', 'core'] as const
+export type Muscle = (typeof MUSCLES)[number]
+
 /** weighted: weight x reps. reps: bodyweight reps. hold: seconds. interval: work/rest rounds, output = reps or cals per round. */
 export type ExerciseKind = 'weighted' | 'reps' | 'hold' | 'interval' | 'cardio'
 
@@ -114,8 +117,6 @@ export interface Profile {
   weeklyLossLb: number
   usdaKey: string
   restScale: number
-  /** plan ids in the user's rotation; empty = default */
-  rotation?: string[]
 }
 
 export interface AppState {
@@ -144,4 +145,6 @@ export interface ActiveWorkout {
   sets: SetLog[]
   skipped: number[]
   overruns?: number
+  /** the plan's blocks after coach adjustments and swaps */
+  blocks?: PlanBlock[]
 }

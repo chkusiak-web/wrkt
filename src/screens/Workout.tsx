@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ActiveWorkout, Equipment, ExerciseKind, Plan, SetLog, WorkoutLog, WorkoutType } from '../types'
+import { MUSCLES, type ActiveWorkout, type Equipment, type ExerciseKind, type Muscle, type Plan, type SetLog, type WorkoutLog } from '../types'
 import { getState, setState, useStore } from '../lib/store'
-import { MINIMUM, PLANS, estimateMin, exerciseFor, rotationOf, suggestedPlanId, planById, planSteps, type Step } from '../lib/plans'
+import { MINIMUM, PLANS, activePlan, estimateMin, exerciseById, exerciseFor, planSteps, type Step } from '../lib/plans'
+import { primaryMuscle as primaryMuscleOf } from '../lib/plans'
+import { MUSCLE_LABEL, muscleStates, swapOptions, suggest, type MuscleState } from '../lib/coach'
 import { targetFor, newPRs, volume, lastSetsFor, e1rm } from '../lib/progress'
 import { usePhoenix } from '../lib/usePhoenix'
 import { UPKEEP, workoutBonuses, workoutUpkeep } from '../lib/xp'
@@ -26,43 +28,39 @@ export default function Workout() {
   return <Picker />
 }
 
-const TYPES: { value: 'all' | WorkoutType; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'strength', label: 'Strength' },
-  { value: 'conditioning', label: 'Cardio' },
-  { value: 'easy', label: 'Easy' },
-]
+function Recovery({ ms }: { ms: Record<Muscle, MuscleState> }) {
+  return (
+    <div className="recovery" aria-label="Muscle recovery">
+      {MUSCLES.map((m) => (
+        <div key={m} className="rec-row">
+          <span className="small">{MUSCLE_LABEL[m]}</span>
+          <div className="bar"><div className={`bar-fill ${ms[m].ready < 1 ? 'dim' : ''}`} style={{ width: `${Math.round(ms[m].ready * 100)}%` }} /></div>
+          <span className="muted small">{ms[m].hoursLeft ? `${ms[m].hoursLeft}h` : '✓'}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function Picker() {
   const workouts = useStore((s) => s.workouts)
+  const cardio = useStore((s) => s.cardio)
   const profile = useStore((s) => s.profile)
   const [eq, setEq] = useState<Equipment>(profile?.equipment ?? 'gym')
-  const [type, setType] = useState<'all' | WorkoutType>('all')
-  const rotation = rotationOf(profile?.rotation)
-  const suggested = suggestedPlanId(workouts, profile?.rotation)
+  const [showRec, setShowRec] = useState(false)
+  const sug = useMemo(() => suggest({ workouts, cardio }), [workouts, cardio])
 
-  const start = (planId: string) => {
+  const start = (plan: Plan) => {
     unlockAudio()
     setState((s) => ({
       ...s,
       profile: s.profile ? { ...s.profile, equipment: eq } : s.profile,
-      active: { planId, equipment: eq, start: Date.now(), step: 0, sets: [], skipped: [] },
+      active: { planId: plan.id, blocks: plan.blocks, equipment: eq, start: Date.now(), step: 0, sets: [], skipped: [] },
     }))
   }
-  const toggleRotation = (id: string) =>
-    setState((s) => {
-      if (!s.profile) return s
-      const cur = rotationOf(s.profile.rotation)
-      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]
-      if (!next.length) return s
-      return { ...s, profile: { ...s.profile, rotation: next } }
-    })
 
-  const moves = (p: Plan) =>
-    p.blocks.map((bl) => bl.slots.map((sl) => exerciseFor(sl, eq).name).join(' + '))
-
-  const up = planById(suggested)
-  const bank = PLANS.filter((p) => p.id !== suggested && (type === 'all' || p.type === type))
+  const moves = (p: Plan) => p.blocks.map((bl) => bl.slots.map((sl) => exerciseFor(sl, eq).name).join(' + '))
+  const up = sug.plan
 
   return (
     <div className="screen">
@@ -71,37 +69,33 @@ function Picker() {
       <Card className="highlight">
         <div className="tag">Up next · {estimateMin(up)} min</div>
         <h2>{up.name}</h2>
+        <p className="muted small">{sug.reason}{sug.swaps.length ? ` · ${sug.swaps.length} move${sug.swaps.length > 1 ? 's' : ''} swapped for fresher muscles` : ''}</p>
         <ul className="mini-list">
           {moves(up).map((m, i) => (
             <li key={i}>{m}</li>
           ))}
         </ul>
-        <button className="primary" onClick={() => start(up.id)}>Start</button>
+        <button className="primary" onClick={() => start(up)}>Start</button>
       </Card>
+      <button className="ghost" onClick={() => setShowRec(!showRec)}>{showRec ? 'Hide recovery' : 'Muscle recovery'}</button>
+      {showRec && <Card><Recovery ms={sug.ms} /></Card>}
       <h2>Workout bank</h2>
-      <p className="muted small">★ = in your rotation</p>
-      <Seg options={TYPES} value={type} onChange={setType} />
       <div className="stack">
-        {bank.map((p) => {
-          const inRot = rotation.includes(p.id)
-          return (
-            <Card key={p.id}>
-              <div className="card-head">
-                <h2>{p.name}</h2>
-                <button className="ghost star" onClick={() => toggleRotation(p.id)} aria-pressed={inRot} aria-label={inRot ? 'Remove from rotation' : 'Add to rotation'}>
-                  {inRot ? '★' : '☆'}
-                </button>
-              </div>
-              <p className="muted small">{estimateMin(p)} min · {moves(p).join(' · ')}</p>
-              <button onClick={() => start(p.id)}>Start</button>
-            </Card>
-          )
-        })}
+        {PLANS.filter((p) => p.id !== up.id).map((p) => (
+          <Card key={p.id}>
+            <div className="card-head">
+              <h2>{p.name}</h2>
+              <span className="muted small">{estimateMin(p)} min</span>
+            </div>
+            <p className="muted small">{moves(p).join(' · ')}</p>
+            <button onClick={() => start(p)}>Start</button>
+          </Card>
+        ))}
         <Card>
           <div className="tag">Short on time?</div>
           <h2>{MINIMUM.name}</h2>
           <p className="muted">{MINIMUM.blurb}</p>
-          <button onClick={() => start(MINIMUM.id)}>Start</button>
+          <button onClick={() => start(MINIMUM)}>Start</button>
         </Card>
       </div>
     </div>
@@ -113,7 +107,7 @@ type Phase = { kind: 'ready' } | { kind: 'work'; endAt: number } | { kind: 'rest
 function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: WorkoutLog) => void }) {
   const history = useStore((s) => s.workouts)
   const restScale = useStore((s) => s.profile?.restScale ?? 1)
-  const plan = planById(active.planId)
+  const plan = useMemo(() => activePlan(active), [active])
   const steps = useMemo(() => planSteps(plan, active.equipment), [plan, active.equipment])
   const now = useNow()
   const [phase, setPhase] = useState<Phase>({ kind: 'ready' })
@@ -122,6 +116,7 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
   const target = step ? targetFor(step.exercise, step.block, step.setNo, history) : null
   const [weight, setWeight] = useState(0)
   const [reps, setReps] = useState(0)
+  const [swapping, setSwapping] = useState(false)
   const beeped = useRef(-1)
 
   useEffect(() => {
@@ -180,14 +175,13 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
     const a = getState().active
     if (!a) return
     const prior = getState().workouts
-    const kinds = new Map(steps.map((st) => [st.exercise.id, st.exercise] as const))
     const log: WorkoutLog = {
       id: uid(), date: today(a.start), planId: plan.id, planName: plan.name, type: plan.type, equipment: a.equipment,
       start: a.start, end: Date.now(), sets: a.sets,
       minimum: plan.id === MINIMUM.id,
       complete: a.sets.length >= steps.length * 0.75,
       overruns: a.overruns ?? 0,
-      stats: workoutStats(prior, a.sets, (id) => kinds.get(id)?.kind, (id) => kinds.get(id)?.unit),
+      stats: workoutStats(prior, a.sets, (id) => exerciseById(id)?.kind, (id) => exerciseById(id)?.unit),
     }
     setState((s) => ({ ...s, active: null, workouts: [...s.workouts, log] }))
     onFinish(log)
@@ -224,6 +218,38 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
   }
 
   const left = phase.kind === 'ready' ? 0 : Math.max(0, (phase.endAt - now) / 1000)
+
+  // swap this lift for the rest of the workout; recovery uses what was logged, so tomorrow adapts
+  const swapTo = (slot: string) => {
+    update((a) => {
+      const blocks = activePlan(a).blocks.map((bl, i) => (i === step.blockIndex ? { ...bl, slots: bl.slots.map((sl) => (sl === step.slot ? slot : sl)) } : bl))
+      return { ...a, blocks }
+    })
+    setSwapping(false)
+  }
+
+  if (swapping) {
+    const st = getState()
+    const opts = swapOptions(step.slot, plan.blocks.flatMap((bl) => bl.slots), muscleStates(st))
+    return (
+      <div className="screen">
+        <div className="card-head">
+          <button className="ghost" onClick={() => setSwapping(false)}>‹ Back</button>
+          <h1>Swap</h1>
+          <span />
+        </div>
+        <p className="muted small">Replacing {step.exercise.name}</p>
+        <Card>
+          {opts.map((o) => (
+            <button key={o.slot} className="hit" onClick={() => swapTo(o.slot)}>
+              <div>{exerciseFor(o.slot, active.equipment).name}</div>
+              <div className="muted small">{MUSCLE_LABEL[o.muscle]} · {o.ready >= 1 ? 'rested' : `${Math.round(o.ready * 100)}% recovered`}</div>
+            </button>
+          ))}
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="screen runner">
@@ -317,7 +343,10 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
               <button className="primary big-btn" onClick={doneSet}>Done ✓</button>
             </>
           )}
-          <button className="ghost" onClick={skip}>Skip this {isInterval ? 'round' : 'set'}</button>
+          <div className="row">
+            <button className="ghost" onClick={skip}>Skip</button>
+            {!isInterval && primaryMuscleOf(step.slot) && <button className="ghost" onClick={() => setSwapping(true)}>Swap</button>}
+          </div>
         </div>
       )}
     </div>
@@ -377,12 +406,10 @@ function Summary({ log: initial, onClose }: { log: WorkoutLog; onClose: () => vo
     <div className="screen center">
       <div className="flame">+{earned} XP</div>
       <h1>{p.today.total >= UPKEEP ? 'Phoenix fed 🔥' : `Phoenix fed ${p.today.total}/${UPKEEP}`}</h1>
-      {(log.type === 'conditioning' || log.type === 'easy') && (
-        <Card>
-          <h2>How hard was that?</h2>
-          <Seg options={[{ value: 'easy', label: 'Easy' }, { value: 'hard', label: 'Hard (+30 XP)' }]} value={log.rating ?? ('' as 'easy')} onChange={rate} />
-        </Card>
-      )}
+      <Card>
+        <h2>How hard was that?</h2>
+        <Seg options={[{ value: 'easy', label: 'Easy' }, { value: 'hard', label: log.type === 'conditioning' ? 'Hard (+30 XP)' : 'Hard' }]} value={log.rating ?? ('' as 'easy')} onChange={rate} />
+      </Card>
       <Card>
         <ul className="xp-items">
           {items.map((i, k) => (

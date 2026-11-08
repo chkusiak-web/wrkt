@@ -1,4 +1,4 @@
-import type { Equipment, Exercise, Plan, PlanBlock } from '../types'
+import type { Equipment, Exercise, Muscle, Plan, PlanBlock } from '../types'
 
 /** Each movement slot maps to an exercise per equipment setup. */
 const SLOTS: Record<string, Record<Equipment, Exercise>> = {
@@ -107,6 +107,11 @@ const SLOTS: Record<string, Record<Equipment, Exercise>> = {
     dumbbells: { id: 'bw-dead-bug', name: 'Dead Bug', kind: 'reps', cue: 'Low back pressed down. Reps per side.' },
     bodyweight: { id: 'bw-dead-bug', name: 'Dead Bug', kind: 'reps', cue: 'Low back pressed down. Reps per side.' },
   },
+  calves: {
+    gym: { id: 'calf-raise', name: 'Standing Calf Raise', kind: 'weighted', cue: 'Full stretch at the bottom, pause at the top.' },
+    dumbbells: { id: 'db-calf-raise', name: 'Dumbbell Calf Raise', kind: 'weighted', cue: 'Full stretch at the bottom, pause at the top.' },
+    bodyweight: { id: 'bw-calf-raise', name: 'Single-leg Calf Raise', kind: 'reps', cue: 'Hold a wall. Reps per leg.' },
+  },
   skater: {
     gym: { id: 'skater', name: 'Skater Hops', kind: 'interval', unit: 'reps', cue: 'Side to side, land soft. Log reps per round.' },
     dumbbells: { id: 'skater', name: 'Skater Hops', kind: 'interval', unit: 'reps', cue: 'Side to side, land soft. Log reps per round.' },
@@ -123,27 +128,84 @@ const b = (slots: string[], sets: number, repMin: number, repMax: number, rest: 
   slots, sets, repMin, repMax, rest, work,
 })
 
+/** Every workout ends with 5-8 min of cardio. */
 export const PLANS: Plan[] = [
   {
     id: 'strength-a',
     name: 'Full Body A',
     type: 'strength',
-    blurb: 'Squat + push, hinge + pull supersets, then a sprint finisher.',
+    blurb: 'Squat + push, hinge + pull supersets, then bike sprints.',
     blocks: [b(['squat', 'hpush'], 3, 8, 12, 45), b(['hinge', 'hpull'], 3, 8, 12, 45), b(['finisher'], 6, 0, 0, 30, 20)],
-  },
-  {
-    id: 'conditioning',
-    name: 'Heart & Lungs',
-    type: 'conditioning',
-    blurb: 'Intervals that push your cardio, then a short circuit.',
-    blocks: [b(['intervals'], 8, 0, 0, 60, 30), b(['circuit1', 'circuit2'], 4, 0, 0, 15, 30)],
   },
   {
     id: 'strength-b',
     name: 'Full Body B',
     type: 'strength',
-    blurb: 'Lunge + press, deadlift + pull supersets, core and carries.',
-    blocks: [b(['lunge', 'vpush'], 3, 8, 12, 45), b(['deadlift', 'vpull'], 3, 6, 10, 60), b(['core', 'carry'], 2, 30, 60, 30)],
+    blurb: 'Lunge + press, deadlift + pull, core and carries, then intervals.',
+    blocks: [b(['lunge', 'vpush'], 3, 8, 12, 45), b(['deadlift', 'vpull'], 3, 6, 10, 60), b(['core', 'carry'], 2, 30, 60, 30), b(['intervals'], 5, 0, 0, 40, 30)],
+  },
+  {
+    id: 'conditioning',
+    name: 'Legs + Lungs',
+    type: 'strength',
+    blurb: 'Squats and rows, then a longer interval finish.',
+    blocks: [b(['squat', 'hpull'], 3, 8, 12, 45), b(['lunge', 'core'], 2, 10, 12, 30), b(['intervals'], 6, 0, 0, 40, 30)],
+  },
+  {
+    id: 'upper',
+    name: 'Upper Body',
+    type: 'strength',
+    blurb: 'Chest, back and shoulders, then sprints.',
+    blocks: [b(['hpush', 'hpull'], 3, 8, 12, 45), b(['vpush', 'vpull'], 3, 8, 12, 45), b(['incline', 'reardelt'], 2, 10, 15, 30), b(['finisher'], 6, 0, 0, 30, 20)],
+  },
+  {
+    id: 'lower',
+    name: 'Lower Body',
+    type: 'strength',
+    blurb: 'Squat, hinge, single-leg and calves, then climbing intervals.',
+    blocks: [b(['squat', 'abs'], 4, 6, 10, 60), b(['hinge', 'stepup'], 3, 8, 12, 45), b(['hipthrust', 'calves'], 2, 10, 15, 30), b(['climb'], 5, 0, 0, 40, 40)],
+  },
+  {
+    id: 'heavy',
+    name: 'Heavy Day',
+    type: 'strength',
+    blurb: 'Fewer reps, more weight, longer rest. Short sprint finish.',
+    blocks: [b(['squat', 'hpull'], 5, 4, 6, 75), b(['deadlift', 'vpush'], 4, 4, 6, 75), b(['finisher'], 5, 0, 0, 40, 20)],
+  },
+  {
+    id: 'burn',
+    name: 'High-Rep Burn',
+    type: 'strength',
+    blurb: 'Lighter weight, 15-20 reps, short rest, swing finisher.',
+    blocks: [b(['squat', 'hpush'], 2, 15, 20, 30), b(['lunge', 'hpull'], 2, 15, 20, 30), b(['vpush', 'hipthrust'], 2, 15, 20, 30), b(['circuit1'], 6, 0, 0, 20, 30)],
+  },
+  {
+    id: 'circuit',
+    name: 'Full-Body Circuit',
+    type: 'strength',
+    blurb: 'Four moves back to back, three rounds, then skaters.',
+    blocks: [b(['squat', 'hpush', 'hpull', 'circuit1'], 3, 10, 15, 15), b(['lunge', 'vpush', 'abs', 'circuit2'], 3, 10, 15, 15), b(['skater'], 5, 0, 0, 30, 30)],
+  },
+  {
+    id: 'sprints',
+    name: 'Push + Sprints',
+    type: 'strength',
+    blurb: 'Press and hinge, pull and abs, then eight sprints.',
+    blocks: [b(['hpush', 'hinge'], 3, 8, 12, 45), b(['vpull', 'abs'], 2, 10, 15, 30), b(['finisher'], 8, 0, 0, 40, 20)],
+  },
+  {
+    id: 'hills',
+    name: 'Pull + Hills',
+    type: 'strength',
+    blurb: 'Pulls, step-ups and calves, then stairs or hills.',
+    blocks: [b(['vpull', 'stepup'], 3, 8, 12, 45), b(['reardelt', 'calves'], 2, 12, 15, 30), b(['climb'], 5, 0, 0, 45, 45)],
+  },
+  {
+    id: 'zone2',
+    name: 'Strength + Zone 2',
+    type: 'strength',
+    blurb: 'Lunges, presses and core, then steady cardio you could talk through.',
+    blocks: [b(['lunge', 'vpush'], 3, 8, 12, 45), b(['core', 'abs'], 2, 30, 45, 20), b(['walk'], 1, 6, 8, 0)],
   },
   {
     id: 'easy',
@@ -151,62 +213,6 @@ export const PLANS: Plan[] = [
     type: 'easy',
     blurb: 'Walk + mobility. Still counts for your streak. Recovery is training.',
     blocks: [b(['walk'], 1, 20, 40, 0), b(['mobility'], 1, 5, 10, 0)],
-  },
-  {
-    id: 'upper',
-    name: 'Upper Body',
-    type: 'strength',
-    blurb: 'Push + pull supersets for chest, back and shoulders, then a sprint.',
-    blocks: [b(['hpush', 'hpull'], 3, 8, 12, 45), b(['vpush', 'vpull'], 3, 8, 12, 45), b(['incline', 'reardelt'], 2, 10, 15, 30), b(['finisher'], 4, 0, 0, 30, 20)],
-  },
-  {
-    id: 'lower',
-    name: 'Lower Body',
-    type: 'strength',
-    blurb: 'Squat, hinge and single-leg work. Legs burn the most calories.',
-    blocks: [b(['squat', 'abs'], 4, 6, 10, 60), b(['hinge', 'stepup'], 3, 8, 12, 45), b(['hipthrust', 'carry'], 2, 10, 15, 30)],
-  },
-  {
-    id: 'heavy',
-    name: 'Heavy Day',
-    type: 'strength',
-    blurb: 'Fewer reps, more weight, longer rest. Builds raw strength.',
-    blocks: [b(['squat', 'hpull'], 5, 4, 6, 75), b(['deadlift', 'vpush'], 4, 4, 6, 75)],
-  },
-  {
-    id: 'burn',
-    name: 'High-Rep Burn',
-    type: 'strength',
-    blurb: 'Lighter weight, 15-20 reps, short rest. Heart rate stays high.',
-    blocks: [b(['squat', 'hpush'], 2, 15, 20, 30), b(['lunge', 'hpull'], 2, 15, 20, 30), b(['vpush', 'hipthrust'], 2, 15, 20, 30), b(['circuit1'], 4, 0, 0, 20, 30)],
-  },
-  {
-    id: 'circuit',
-    name: 'Full-Body Circuit',
-    type: 'conditioning',
-    blurb: 'Four moves back to back, three rounds. No sitting around.',
-    blocks: [b(['squat', 'hpush', 'hpull', 'circuit1'], 3, 10, 15, 15), b(['lunge', 'vpush', 'abs', 'circuit2'], 3, 10, 15, 15)],
-  },
-  {
-    id: 'sprints',
-    name: 'Sprint Ladder',
-    type: 'conditioning',
-    blurb: 'Ten all-out sprints, then a quick two-move finisher.',
-    blocks: [b(['finisher'], 10, 0, 0, 40, 20), b(['skater', 'circuit2'], 3, 0, 0, 15, 30)],
-  },
-  {
-    id: 'hills',
-    name: 'Stairs & Hills',
-    type: 'conditioning',
-    blurb: 'Climbing intervals for lungs and legs, then quick feet.',
-    blocks: [b(['climb'], 8, 0, 0, 45, 45), b(['skater', 'circuit1'], 3, 0, 0, 15, 30)],
-  },
-  {
-    id: 'zone2',
-    name: 'Zone 2 + Core',
-    type: 'conditioning',
-    blurb: 'Steady cardio at a pace you could talk at, then core work.',
-    blocks: [b(['walk'], 1, 25, 35, 0), b(['core', 'abs'], 2, 30, 45, 20)],
   },
   {
     id: 'mobility',
@@ -225,9 +231,6 @@ export const MINIMUM: Plan = {
   blurb: 'Busy day? Two quick supersets and a finisher. Worth 40 XP.',
   blocks: [b(['squat', 'hpush'], 2, 8, 12, 30), b(['finisher'], 4, 0, 0, 20, 20)],
 }
-
-/** Default rotation: A, cardio, B, easy, repeat. The user can change it. */
-export const ROTATION = ['strength-a', 'conditioning', 'strength-b', 'easy']
 
 export const planById = (id: string) => (id === MINIMUM.id ? MINIMUM : (PLANS.find((p) => p.id === id) ?? PLANS[0]))
 
@@ -266,19 +269,45 @@ export function planSteps(plan: Plan, eq: Equipment): Step[] {
   return out
 }
 
-export const rotationOf = (custom?: string[]) => {
-  const r = (custom ?? []).filter((id) => PLANS.some((p) => p.id === id))
-  return r.length ? r : ROTATION
+/** Muscles each movement slot works: 1 = main, 0.5 = helper. Cardio slots work the heart, not listed here. */
+export const SLOT_MUSCLES: Record<string, Partial<Record<Muscle, number>>> = {
+  squat: { quads: 1, glutes: 0.5, core: 0.5 },
+  hpush: { chest: 1, triceps: 0.5, shoulders: 0.5 },
+  hinge: { hamstrings: 1, glutes: 0.5 },
+  hpull: { back: 1, biceps: 0.5 },
+  lunge: { quads: 1, glutes: 0.5, calves: 0.5 },
+  vpush: { shoulders: 1, triceps: 0.5 },
+  vpull: { back: 1, biceps: 0.5 },
+  deadlift: { glutes: 1, hamstrings: 0.5, back: 0.5, quads: 0.5 },
+  core: { core: 1 },
+  carry: { core: 0.5, back: 0.5 },
+  incline: { chest: 1, shoulders: 0.5, triceps: 0.5 },
+  reardelt: { shoulders: 1, back: 0.5 },
+  stepup: { quads: 1, glutes: 0.5, calves: 0.5 },
+  hipthrust: { glutes: 1, hamstrings: 0.5 },
+  abs: { core: 1 },
+  calves: { calves: 1 },
+  climb: { calves: 0.5 },
 }
 
-export function nextPlanId(lastPlanId: string | undefined, rotation: string[] = ROTATION) {
-  if (!lastPlanId || !rotation.includes(lastPlanId)) return rotation[0]
-  const i = rotation.indexOf(lastPlanId)
-  return rotation[(i + 1) % rotation.length]
-}
+/** Lifting slots the coach may swap between. */
+export const STRENGTH_SLOTS = Object.keys(SLOT_MUSCLES).filter((s) => s !== 'climb')
 
-/** Next plan in the rotation, ignoring minimum days and plans picked from the bank. */
-export const suggestedPlanId = (workouts: { planId: string }[], custom?: string[]) => {
-  const rotation = rotationOf(custom)
-  return nextPlanId([...workouts].reverse().find((w) => rotation.includes(w.planId))?.planId, rotation)
+export const primaryMuscle = (slot: string): Muscle | undefined =>
+  (Object.entries(SLOT_MUSCLES[slot] ?? {}) as [Muscle, number][]).sort((a, b) => b[1] - a[1])[0]?.[0]
+
+const SLOT_BY_EXERCISE = new Map<string, string>()
+const EXERCISE_BY_ID = new Map<string, Exercise>()
+for (const [slot, byEq] of Object.entries(SLOTS))
+  for (const ex of Object.values(byEq)) {
+    if (!SLOT_BY_EXERCISE.has(ex.id)) SLOT_BY_EXERCISE.set(ex.id, slot)
+    if (!EXERCISE_BY_ID.has(ex.id)) EXERCISE_BY_ID.set(ex.id, ex)
+  }
+export const slotOfExercise = (id: string) => SLOT_BY_EXERCISE.get(id)
+export const exerciseById = (id: string) => EXERCISE_BY_ID.get(id)
+
+/** The plan an active workout is running, including any swaps. */
+export const activePlan = (a: { planId: string; blocks?: PlanBlock[] }): Plan => {
+  const base = planById(a.planId)
+  return a.blocks ? { ...base, blocks: a.blocks } : base
 }

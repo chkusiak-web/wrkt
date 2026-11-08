@@ -139,3 +139,8 @@ details.card[open] summary { margin-bottom: 8px; }
 
 .star { font-size: 22px; min-width: 44px; min-height: 44px; padding: 0; flex: none; }
 .star[aria-pressed='true'] { color: var(--accent); }
+
+.recovery { display: grid; gap: 6px; }
+.rec-row { display: grid; grid-template-columns: 84px 1fr 36px; gap: 8px; align-items: center; }
+.rec-row .bar { height: 6px; margin: 0; }
+.rec-row .bar-fill.dim { opacity: 0.55; }
