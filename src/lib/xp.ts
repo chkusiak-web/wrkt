@@ -24,7 +24,7 @@ export const LEVELS: Level[] = [
   { name: 'Electric', next: 15000, light: ['#06243A', '#0A78C2', '#22C3FF', '#8FF0FF', '#F0FDFF'] },
   { name: 'Magenta', next: 20000, light: ['#33061F', '#B5106A', '#FF2E9A', '#FF8AD0', '#FFE6F4'] },
   { name: 'Ultraviolet', next: 30000, light: ['#1A0A3A', '#5A2CD6', '#8E5CFF', '#C9A8FF', '#F3EBFF'] },
-  { name: 'Crown', next: Infinity, light: ['#2E2006', '#B88A1E', '#F2C14E', '#FFE7A3', '#FFFFFF'] },
+  { name: 'Crown', next: Infinity, light: ['#2B1C17', '#C49A8A', '#F6E9E2', '#FFF9F5', '#FFFFFF'] },
 ]
 
 export interface XPItem {
