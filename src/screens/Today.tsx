@@ -22,7 +22,7 @@ export default function Today({ go }: { go: (t: Tab) => void }) {
   const eaten = foods.filter((f) => f.date === today)
   const kcal = eaten.reduce((a, f) => a + f.kcal, 0)
   const protein = eaten.reduce((a, f) => a + f.protein, 0)
-  const next = planById(suggestedPlanId(workouts))
+  const next = planById(suggestedPlanId(workouts, profile?.rotation))
   const todayWeight = weights.find((w) => w.date === today)
   const [wInput, setWInput] = useState('')
   const lost = profile ? profile.startWeight - weight : 0

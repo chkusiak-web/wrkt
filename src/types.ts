@@ -114,6 +114,8 @@ export interface Profile {
   weeklyLossLb: number
   usdaKey: string
   restScale: number
+  /** plan ids in the user's rotation; empty = default */
+  rotation?: string[]
 }
 
 export interface AppState {

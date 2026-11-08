@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ActiveWorkout, Equipment, ExerciseKind, SetLog, WorkoutLog } from '../types'
+import type { ActiveWorkout, Equipment, ExerciseKind, Plan, SetLog, WorkoutLog, WorkoutType } from '../types'
 import { getState, setState, useStore } from '../lib/store'
-import { MINIMUM, PLANS, suggestedPlanId, planById, planSteps, type Step } from '../lib/plans'
+import { MINIMUM, PLANS, estimateMin, exerciseFor, rotationOf, suggestedPlanId, planById, planSteps, type Step } from '../lib/plans'
 import { targetFor, newPRs, volume, lastSetsFor, e1rm } from '../lib/progress'
 import { usePhoenix } from '../lib/usePhoenix'
 import { UPKEEP, workoutBonuses, workoutUpkeep } from '../lib/xp'
@@ -26,11 +26,20 @@ export default function Workout() {
   return <Picker />
 }
 
+const TYPES: { value: 'all' | WorkoutType; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'strength', label: 'Strength' },
+  { value: 'conditioning', label: 'Cardio' },
+  { value: 'easy', label: 'Easy' },
+]
+
 function Picker() {
   const workouts = useStore((s) => s.workouts)
   const profile = useStore((s) => s.profile)
   const [eq, setEq] = useState<Equipment>(profile?.equipment ?? 'gym')
-  const suggested = suggestedPlanId(workouts)
+  const [type, setType] = useState<'all' | WorkoutType>('all')
+  const rotation = rotationOf(profile?.rotation)
+  const suggested = suggestedPlanId(workouts, profile?.rotation)
 
   const start = (planId: string) => {
     unlockAudio()
@@ -40,29 +49,54 @@ function Picker() {
       active: { planId, equipment: eq, start: Date.now(), step: 0, sets: [], skipped: [] },
     }))
   }
+  const toggleRotation = (id: string) =>
+    setState((s) => {
+      if (!s.profile) return s
+      const cur = rotationOf(s.profile.rotation)
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]
+      if (!next.length) return s
+      return { ...s, profile: { ...s.profile, rotation: next } }
+    })
+
+  const moves = (p: Plan) =>
+    p.blocks.map((bl) => bl.slots.map((sl) => exerciseFor(sl, eq).name).join(' + '))
+
+  const up = planById(suggested)
+  const bank = PLANS.filter((p) => p.id !== suggested && (type === 'all' || p.type === type))
 
   return (
     <div className="screen">
       <h1>Workout</h1>
-      <label>Where are you today?</label>
       <Seg options={EQUIP} value={eq} onChange={setEq} />
+      <Card className="highlight">
+        <div className="tag">Up next · {estimateMin(up)} min</div>
+        <h2>{up.name}</h2>
+        <ul className="mini-list">
+          {moves(up).map((m, i) => (
+            <li key={i}>{m}</li>
+          ))}
+        </ul>
+        <button className="primary" onClick={() => start(up.id)}>Start</button>
+      </Card>
+      <h2>Workout bank</h2>
+      <p className="muted small">★ = in your rotation</p>
+      <Seg options={TYPES} value={type} onChange={setType} />
       <div className="stack">
-        {[planById(suggested), ...PLANS.filter((p) => p.id !== suggested)].map((p) => (
-          <Card key={p.id} className={p.id === suggested ? 'highlight' : ''}>
-            {p.id === suggested && <div className="tag">Up next</div>}
-            <h2>{p.name}</h2>
-            <p className="muted">{p.blurb}</p>
-            <ul className="mini-list">
-              {p.blocks.map((b, i) => (
-                <li key={i}>
-                  {b.slots.map((sl) => planSteps({ ...p, blocks: [b] }, eq).find((st) => st.slot === sl)!.exercise.name).join(' + ')}
-                  <span className="muted"> · {b.sets}{b.work ? ` × ${b.work}s` : b.repMax ? ` × ${b.repMin}-${b.repMax}` : ''}</span>
-                </li>
-              ))}
-            </ul>
-            <button className={p.id === suggested ? 'primary' : ''} onClick={() => start(p.id)}>Start</button>
-          </Card>
-        ))}
+        {bank.map((p) => {
+          const inRot = rotation.includes(p.id)
+          return (
+            <Card key={p.id}>
+              <div className="card-head">
+                <h2>{p.name}</h2>
+                <button className="ghost star" onClick={() => toggleRotation(p.id)} aria-pressed={inRot} aria-label={inRot ? 'Remove from rotation' : 'Add to rotation'}>
+                  {inRot ? '★' : '☆'}
+                </button>
+              </div>
+              <p className="muted small">{estimateMin(p)} min · {moves(p).join(' · ')}</p>
+              <button onClick={() => start(p.id)}>Start</button>
+            </Card>
+          )
+        })}
         <Card>
           <div className="tag">Short on time?</div>
           <h2>{MINIMUM.name}</h2>

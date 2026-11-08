@@ -52,7 +52,7 @@ export default function Settings({ session }: { session: Session | null }) {
         initial={profile}
         cta={saved ? 'Saved ✓' : 'Save profile'}
         onSave={(p) => {
-          setState((s) => ({ ...s, profile: { ...p, usdaKey: s.profile!.usdaKey, restScale: s.profile!.restScale } }))
+          setState((s) => ({ ...s, profile: { ...p, usdaKey: s.profile!.usdaKey, restScale: s.profile!.restScale, rotation: s.profile!.rotation } }))
           setSaved(true)
           setTimeout(() => setSaved(false), 1500)
         }}
