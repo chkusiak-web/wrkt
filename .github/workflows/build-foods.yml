@@ -2,6 +2,10 @@ name: Build offline food list
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - scripts/build-foods.py
+      - .github/workflows/build-foods.yml
 
 permissions:
   contents: write
