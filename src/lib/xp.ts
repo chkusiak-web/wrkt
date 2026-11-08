@@ -82,7 +82,9 @@ export function workoutBonuses(w: WorkoutLog): XPItem[] {
   if (s?.beats) out.push({ label: `${s.beats} set${s.beats > 1 ? 's' : ''} beat last time`, xp: s.beats * 5 })
   if (s?.prs) out.push({ label: `${s.prs} lifting PR${s.prs > 1 ? 's' : ''}`, xp: s.prs * 25 })
   if (s?.cardioPR) out.push({ label: 'Cardio PR', xp: 75 })
+  // older cardio-day logs keep their bonus so past XP doesn't change
   if (w.type === 'conditioning' && w.rating === 'hard') out.push({ label: 'Cardio day rated hard', xp: 30 })
+  if (w.extra && w.extra > 0) out.push({ label: 'Went beyond the plan', xp: 30 })
   if (!w.minimum && w.complete && workoutMinutes(w) <= 30 && !w.overruns) out.push({ label: 'Done in 30 min, no rest overruns', xp: 25 })
   return out
 }

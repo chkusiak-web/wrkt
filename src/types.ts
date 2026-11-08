@@ -66,6 +66,8 @@ export interface WorkoutLog {
   overruns?: number
   /** XP-relevant results, computed when the workout is saved */
   stats?: { beats: number; prs: number; cardioPR: boolean }
+  /** sets/rounds done beyond the planned workout */
+  extra?: number
 }
 
 export interface ExtraCardio {
@@ -147,4 +149,6 @@ export interface ActiveWorkout {
   overruns?: number
   /** the plan's blocks after coach adjustments and swaps */
   blocks?: PlanBlock[]
+  /** number of steps in the plan at start; anything past it is extra */
+  planned?: number
 }

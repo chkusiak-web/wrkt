@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MUSCLES, type ActiveWorkout, type Equipment, type ExerciseKind, type Muscle, type Plan, type SetLog, type WorkoutLog } from '../types'
+import { MUSCLES, type ActiveWorkout, type Equipment, type ExerciseKind, type Muscle, type Plan, type PlanBlock, type SetLog, type WorkoutLog } from '../types'
 import { getState, setState, useStore } from '../lib/store'
 import { MINIMUM, PLANS, activePlan, estimateMin, exerciseById, exerciseFor, planSteps, type Step } from '../lib/plans'
 import { primaryMuscle as primaryMuscleOf } from '../lib/plans'
@@ -55,7 +55,7 @@ function Picker() {
     setState((s) => ({
       ...s,
       profile: s.profile ? { ...s.profile, equipment: eq } : s.profile,
-      active: { planId: plan.id, blocks: plan.blocks, equipment: eq, start: Date.now(), step: 0, sets: [], skipped: [] },
+      active: { planId: plan.id, blocks: plan.blocks, planned: planSteps(plan, eq).length, equipment: eq, start: Date.now(), step: 0, sets: [], skipped: [] },
     }))
   }
 
@@ -117,6 +117,7 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
   const [weight, setWeight] = useState(0)
   const [reps, setReps] = useState(0)
   const [swapping, setSwapping] = useState(false)
+  const [editing, setEditing] = useState(false)
   const beeped = useRef(-1)
 
   useEffect(() => {
@@ -181,17 +182,29 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
       minimum: plan.id === MINIMUM.id,
       complete: a.sets.length >= steps.length * 0.75,
       overruns: a.overruns ?? 0,
+      extra: Math.max(0, a.sets.length - (a.planned ?? steps.length)),
       stats: workoutStats(prior, a.sets, (id) => exerciseById(id)?.kind, (id) => exerciseById(id)?.unit),
     }
     setState((s) => ({ ...s, active: null, workouts: [...s.workouts, log] }))
     onFinish(log)
   }
 
-  // all steps done
+  // all steps done: save, or go above and beyond for +30 XP
   if (!step) {
+    const extra = Math.max(0, active.sets.length - (active.planned ?? steps.length))
+    const lastBlock = plan.blocks[plan.blocks.length - 1]
+    const addBlock = (bl: PlanBlock) => update((a) => ({ ...a, blocks: [...activePlan(a).blocks, bl] }))
+    const opts = swapOptions('', plan.blocks.flatMap((bl) => bl.slots), muscleStates(getState())).slice(0, 4)
     return (
       <div className="screen center">
         <h1>Done! 💪</h1>
+        {extra > 0 ? <p className="accent">+{extra} extra · +30 XP</p> : <p className="muted">Go beyond the plan for +30 XP</p>}
+        <button onClick={() => addBlock({ ...lastBlock, sets: 1 })}>+ One more round</button>
+        {opts.map((o) => (
+          <button key={o.slot} onClick={() => addBlock({ slots: [o.slot], sets: 2, repMin: 8, repMax: 12, rest: 45 })}>
+            + {exerciseFor(o.slot, active.equipment).name}
+          </button>
+        ))}
         <button className="primary big-btn" onClick={finish}>Save workout</button>
       </div>
     )
@@ -228,6 +241,61 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
     setSwapping(false)
   }
 
+  if (editing) {
+    const cur = step.blockIndex
+    const done = step.setNo - 1
+    const setBlocks = (fn: (bl: PlanBlock[]) => PlanBlock[]) => update((a) => ({ ...a, blocks: fn(activePlan(a).blocks) }))
+    const change = (i: number, fn: (b: PlanBlock) => PlanBlock | null) =>
+      setBlocks((bl) => bl.flatMap((b, j) => (j === i ? (fn(b) ? [fn(b)!] : []) : [b])))
+    const move = (i: number, d: number) =>
+      setBlocks((bl) => {
+        const j = i + d
+        if (j <= cur || j >= bl.length) return bl
+        const out = [...bl]
+        ;[out[i], out[j]] = [out[j], out[i]]
+        return out
+      })
+    const inPlan = plan.blocks.flatMap((bl) => bl.slots)
+    const add = swapOptions('', inPlan, muscleStates(getState())).slice(0, 3)
+    return (
+      <div className="screen">
+        <div className="card-head">
+          <span />
+          <h1>Plan</h1>
+          <button className="primary" onClick={() => setEditing(false)}>Done</button>
+        </div>
+        {plan.blocks.map((bl, i) =>
+          i < cur ? null : (
+            <Card key={i}>
+              <div className="card-head">
+                <h2>{bl.slots.map((sl) => exerciseFor(sl, active.equipment).name).join(' + ')}</h2>
+                {i > cur && (
+                  <div className="row">
+                    <button className="ghost" aria-label="Move up" disabled={i - 1 <= cur} onClick={() => move(i, -1)}>↑</button>
+                    <button className="ghost" aria-label="Move down" disabled={i === plan.blocks.length - 1} onClick={() => move(i, 1)}>↓</button>
+                    <button className="ghost" aria-label="Remove" onClick={() => change(i, () => null)}>✕</button>
+                  </div>
+                )}
+              </div>
+              <Stepper
+                label={bl.work ? 'rounds' : 'sets'}
+                value={bl.sets}
+                onChange={(v) => change(i, (b) => ({ ...b, sets: Math.max(i === cur ? Math.max(1, done + 1) : 1, Math.min(10, v)) }))}
+              />
+              {i === cur && <p className="muted small">In progress · {done} done</p>}
+            </Card>
+          ),
+        )}
+        <h2>Add</h2>
+        {add.map((o) => (
+          <button key={o.slot} onClick={() => setBlocks((bl) => [...bl, { slots: [o.slot], sets: 2, repMin: 8, repMax: 12, rest: 45 }])}>
+            + {exerciseFor(o.slot, active.equipment).name} <span className="muted small">· {MUSCLE_LABEL[o.muscle]}</span>
+          </button>
+        ))}
+      </div>
+    )
+  }
+
   if (swapping) {
     const st = getState()
     const opts = swapOptions(step.slot, plan.blocks.flatMap((bl) => bl.slots), muscleStates(st))
@@ -258,7 +326,10 @@ function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: Wor
           <div className={`clock ${pace > progress + 0.15 ? 'warn' : ''}`}>{fmtClock(elapsed)}</div>
           <div className="muted small">{plan.name} · goal {GOAL_MIN}:00</div>
         </div>
-        <button className="ghost" onClick={() => (confirm('End workout now and save what you did?') ? finish() : null)}>End</button>
+        <div className="row">
+          <button className="ghost" onClick={() => setEditing(true)}>Plan</button>
+          <button className="ghost" onClick={() => (confirm('End workout now and save what you did?') ? finish() : null)}>End</button>
+        </div>
       </div>
       <div className="bar"><div className="bar-fill" style={{ width: `${progress * 100}%` }} /></div>
 

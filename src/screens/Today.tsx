@@ -3,6 +3,7 @@ import { setState, useStore } from '../lib/store'
 import { addDays, today as todayKey, parseDay, fmtDay, uid } from '../lib/date'
 import { currentWeight, foodStreak, targets } from '../lib/progress'
 import { suggest } from '../lib/coach'
+import { MINIMUM, planSteps } from '../lib/plans'
 import { usePhoenix } from '../lib/usePhoenix'
 import { LEVELS, UPKEEP, type PhoenixState } from '../lib/xp'
 import { unlockAudio } from '../lib/fx'
@@ -108,7 +109,7 @@ function startMinimum(go: (t: Tab) => void) {
   unlockAudio()
   setState((s) => ({
     ...s,
-    active: { planId: 'minimum', equipment: s.profile?.equipment ?? 'gym', start: Date.now(), step: 0, sets: [], skipped: [] },
+    active: { planId: 'minimum', planned: planSteps(MINIMUM, s.profile?.equipment ?? 'gym').length, equipment: s.profile?.equipment ?? 'gym', start: Date.now(), step: 0, sets: [], skipped: [] },
   }))
   go('workout')
 }
