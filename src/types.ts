@@ -102,6 +102,17 @@ export interface FoodEntry {
   ts: number
 }
 
+/** A food you starred, to log again from the Saved tab. */
+export interface SavedFood {
+  id: string
+  name: string
+  per100: { kcal: number; protein: number; carbs: number; fat: number }
+  grams: number
+  servingG?: number
+  servingLabel?: string
+  ts: number
+}
+
 export interface WeightEntry {
   date: string
   lbs: number
@@ -129,6 +140,7 @@ export interface AppState {
   weights: WeightEntry[]
   cardio: ExtraCardio[]
   checks: FitnessCheck[]
+  saved?: SavedFood[]
   /** in-progress workout, so a refresh doesn't lose it */
   active: ActiveWorkout | null
   /** ids of deleted foods/workouts, so sync doesn't bring them back */

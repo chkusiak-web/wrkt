@@ -4,9 +4,12 @@ import { getState, replaceState, setState, useStore } from '../lib/store'
 import { onSyncStatus, supabase, syncNow, syncStatus } from '../lib/sync'
 import { ProfileForm } from './Onboarding'
 import { Card, Seg } from '../components/ui'
+import { Back, Bar, Screen } from '../components/kit'
+import { useNav } from '../nav'
 
 export default function Settings({ session }: { session: Session | null }) {
   const profile = useStore((s) => s.profile)
+  const nav = useNav()
   const [saved, setSaved] = useState(false)
   if (!profile) return null
 
@@ -28,8 +31,9 @@ export default function Settings({ session }: { session: Session | null }) {
   }
 
   return (
-    <div className="screen">
-      <h1>Settings</h1>
+    <Screen scroll>
+      <Bar left={<Back label="Home" onClick={nav.back} />} />
+      <div className="title">Settings</div>
       <Account session={session} />
       <Card>
         <h2>Rest between sets</h2>
@@ -47,7 +51,7 @@ export default function Settings({ session }: { session: Session | null }) {
         </p>
         <input value={profile.usdaKey} placeholder="API key" onChange={(e) => setState((s) => ({ ...s, profile: { ...s.profile!, usdaKey: e.target.value.trim() } }))} />
       </Card>
-      <h2>Profile & targets</h2>
+      <div className="label">Profile & targets</div>
       <ProfileForm
         initial={profile}
         cta={saved ? 'Saved ✓' : 'Save profile'}
@@ -59,15 +63,15 @@ export default function Settings({ session }: { session: Session | null }) {
       />
       <Card>
         <h2>Backup</h2>
-        <div className="row">
-          <button onClick={exportData}>Export</button>
-          <label className="button">
+        <div className="frow">
+          <button className="btn" onClick={exportData}>Export</button>
+          <label className="btn">
             Import
             <input type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importData(e.target.files[0])} />
           </label>
         </div>
       </Card>
-    </div>
+    </Screen>
   )
 }
 
@@ -87,9 +91,9 @@ export function Account({ session }: { session: Session | null }) {
         <div className={st.status === 'error' ? 'warn' : 'muted small'}>
           {st.status === 'ok' ? '✓ Synced' : st.status === 'syncing' ? 'Syncing…' : st.status === 'error' ? `Sync error: ${st.lastError}` : ''}
         </div>
-        <div className="row">
-          <button onClick={() => void syncNow()}>Sync now</button>
-          <button className="ghost" onClick={() => void supabase.auth.signOut()}>Sign out</button>
+        <div className="frow">
+          <button className="btn" onClick={() => void syncNow()}>Sync now</button>
+          <button className="btn" onClick={() => void supabase.auth.signOut()}>Sign out</button>
         </div>
       </Card>
     )
@@ -105,14 +109,14 @@ export function Account({ session }: { session: Session | null }) {
   }
 
   return (
-    <Card className="highlight">
+    <Card>
       <h2>Sync phone + laptop</h2>
       <p className="muted small">Sign in on each device. Your data merges automatically.</p>
       <input type="email" autoComplete="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
       <input type="password" autoComplete="current-password" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} />
-      <div className="row">
-        <button className="primary" onClick={() => void go(false)}>Sign in</button>
-        <button onClick={() => void go(true)}>Create account</button>
+      <div className="frow">
+        <button className="btn primary" onClick={() => void go(false)}>Sign in</button>
+        <button className="btn" onClick={() => void go(true)}>Create account</button>
       </div>
       {msg && <div className="muted small">{msg}</div>}
     </Card>

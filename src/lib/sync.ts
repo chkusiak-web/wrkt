@@ -43,6 +43,7 @@ export function merge(a: AppState, b: AppState): AppState {
     foods: byId(a.foods, b.foods).sort((x, y) => x.ts - y.ts),
     cardio: byId(a.cardio ?? [], b.cardio ?? []).sort((x, y) => x.ts - y.ts),
     checks: byId(a.checks ?? [], b.checks ?? []).sort((x, y) => x.ts - y.ts),
+    saved: byId(a.saved ?? [], b.saved ?? []).sort((x, y) => x.ts - y.ts),
     weights: [...weights.values()].sort((x, y) => x.date.localeCompare(y.date)),
     active: newer.active,
     deleted: deleted.slice(-2000),

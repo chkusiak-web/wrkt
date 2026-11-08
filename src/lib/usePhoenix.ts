@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useStore } from './store'
 import { computePhoenix, LEVELS } from './xp'
+import { setRamp } from '../led/engine'
 
 export function usePhoenix() {
   const state = useStore((s) => s)
@@ -17,6 +18,7 @@ export function useLevelTheme(level: number) {
     s.setProperty('--l2', mid)
     s.setProperty('--l3', high)
     s.setProperty('--l4', core)
+    setRamp(LEVELS[level].light)
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0A090B')
   }, [level])
 }

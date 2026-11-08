@@ -11,14 +11,22 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,json}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        // the font, so the app looks right offline too
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/,
+            handler: 'CacheFirst',
+            options: { cacheName: 'fonts', expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 }, cacheableResponse: { statuses: [0, 200] } },
+          },
+        ],
       },
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'WRKT',
         short_name: 'WRKT',
         description: 'Workouts, meals, streaks.',
-        theme_color: '#0e1116',
-        background_color: '#0e1116',
+        theme_color: '#0A090B',
+        background_color: '#0A090B',
         display: 'standalone',
         start_url: '/wrkt/',
         scope: '/wrkt/',

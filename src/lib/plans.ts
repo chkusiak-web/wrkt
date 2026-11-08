@@ -311,3 +311,21 @@ export const activePlan = (a: { planId: string; blocks?: PlanBlock[] }): Plan =>
   const base = planById(a.planId)
   return a.blocks ? { ...base, blocks: a.blocks } : base
 }
+
+/** Cardio slots: intervals and steady work. Finishers swap among these. */
+export const CARDIO_SLOTS = ['finisher', 'intervals', 'circuit1', 'circuit2', 'skater', 'climb', 'walk', 'mobility']
+
+/** A block that's all cardio (intervals or steady minutes). */
+export const isCardioBlock = (bl: PlanBlock) => bl.slots.every((s) => CARDIO_SLOTS.includes(s))
+
+/** Where the cardio finisher starts: the trailing cardio blocks after the lifting. */
+export function finisherStart(blocks: PlanBlock[]) {
+  let k = blocks.length
+  while (k > 0 && isCardioBlock(blocks[k - 1])) k--
+  return k === 0 ? blocks.length : k
+}
+
+/** Minutes a cardio block takes. */
+export const cardioMinutes = (bl: PlanBlock) => (bl.work ? Math.max(1, Math.round((bl.sets * (bl.work + bl.rest)) / 60)) : bl.repMin)
+
+export const moveCount = (p: Plan) => p.blocks.reduce((a, bl) => a + bl.slots.length, 0)

@@ -38,12 +38,12 @@ export function ProfileForm({ initial, onSave, cta }: { initial?: Profile | null
       <Card>
         <label>Sex (for calorie math)</label>
         <Seg options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]} value={sex} onChange={setSex} />
-        <div className="row">
+        <div className="frow">
           <div><label>Age</label><input inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value)} /></div>
           <div><label>Height ft</label><input inputMode="numeric" value={ft} onChange={(e) => setFt(e.target.value)} /></div>
           <div><label>in</label><input inputMode="numeric" value={inch} onChange={(e) => setInch(e.target.value)} /></div>
         </div>
-        <div className="row">
+        <div className="frow">
           <div><label>{initial ? 'Start weight' : 'Weight now'} (lb)</label><input inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} /></div>
           <div><label>Goal weight (lb)</label><input inputMode="decimal" value={goal} onChange={(e) => setGoal(e.target.value)} /></div>
         </div>
@@ -53,7 +53,7 @@ export function ProfileForm({ initial, onSave, cta }: { initial?: Profile | null
         <Seg options={[{ value: 12, label: '12 mo' }, { value: 18, label: '18 mo' }, { value: 24, label: '24 mo' }]} value={months} onChange={setMonths} />
       </Card>
       {t && (
-        <Card className="highlight">
+        <Card>
           <div className="big">{t.kcal} kcal / day</div>
           <div>{t.protein} g protein / day</div>
           <p className="muted">
@@ -62,19 +62,19 @@ export function ProfileForm({ initial, onSave, cta }: { initial?: Profile | null
           </p>
         </Card>
       )}
-      <button className="primary" disabled={!valid} onClick={() => onSave(profile)}>{cta}</button>
+      <div className="bottom-c"><button className="btn primary wide" disabled={!valid} onClick={() => onSave(profile)}>{cta}</button></div>
     </div>
   )
 }
 
 export default function Onboarding({ session }: { session: Session | null }) {
   return (
-    <div className="screen">
+    <div className="scr scroll">
       <details className="card">
         <summary>Already set up on another device? Sign in</summary>
         <Account session={session} />
       </details>
-      <h1>Let's set your targets</h1>
+      <div className="title">Your targets</div>
       <p className="muted">One minute. You can change this later.</p>
       <ProfileForm
         cta="Start"
