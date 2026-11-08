@@ -1,0 +1,321 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ActiveWorkout, Equipment, SetLog, WorkoutLog } from '../types'
+import { getState, setState, useStore } from '../lib/store'
+import { PLANS, nextPlanId, planById, planSteps, type Step } from '../lib/plans'
+import { targetFor, newPRs, volume, streak } from '../lib/progress'
+import { dayKey, fmtClock, uid } from '../lib/date'
+import { beep, keepAwake, unlockAudio } from '../lib/fx'
+import { useNow } from '../lib/useNow'
+import { Card, Seg, Stepper } from '../components/ui'
+
+const GOAL_MIN = 30
+
+const EQUIP: { value: Equipment; label: string }[] = [
+  { value: 'gym', label: 'Gym' },
+  { value: 'dumbbells', label: 'Home (DBs)' },
+  { value: 'bodyweight', label: 'No equipment' },
+]
+
+export default function Workout() {
+  const active = useStore((s) => s.active)
+  const [summary, setSummary] = useState<WorkoutLog | null>(null)
+  if (summary) return <Summary log={summary} onClose={() => setSummary(null)} />
+  if (active) return <Runner active={active} onFinish={setSummary} />
+  return <Picker />
+}
+
+function Picker() {
+  const workouts = useStore((s) => s.workouts)
+  const profile = useStore((s) => s.profile)
+  const [eq, setEq] = useState<Equipment>(profile?.equipment ?? 'gym')
+  const suggested = nextPlanId(workouts[workouts.length - 1]?.planId)
+
+  const start = (planId: string) => {
+    unlockAudio()
+    setState((s) => ({
+      ...s,
+      profile: s.profile ? { ...s.profile, equipment: eq } : s.profile,
+      active: { planId, equipment: eq, start: Date.now(), step: 0, sets: [], skipped: [] },
+    }))
+  }
+
+  return (
+    <div className="screen">
+      <h1>Workout</h1>
+      <label>Where are you today?</label>
+      <Seg options={EQUIP} value={eq} onChange={setEq} />
+      <div className="stack">
+        {[planById(suggested), ...PLANS.filter((p) => p.id !== suggested)].map((p) => (
+          <Card key={p.id} className={p.id === suggested ? 'highlight' : ''}>
+            {p.id === suggested && <div className="tag">Up next</div>}
+            <h2>{p.name}</h2>
+            <p className="muted">{p.blurb}</p>
+            <ul className="mini-list">
+              {p.blocks.map((b, i) => (
+                <li key={i}>
+                  {b.slots.map((sl) => planSteps({ ...p, blocks: [b] }, eq).find((st) => st.slot === sl)!.exercise.name).join(' + ')}
+                  <span className="muted"> · {b.sets}{b.work ? ` × ${b.work}s` : b.repMax ? ` × ${b.repMin}-${b.repMax}` : ''}</span>
+                </li>
+              ))}
+            </ul>
+            <button className={p.id === suggested ? 'primary' : ''} onClick={() => start(p.id)}>Start</button>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+type Phase = { kind: 'ready' } | { kind: 'work'; endAt: number } | { kind: 'rest'; endAt: number; pending?: SetLog }
+
+function Runner({ active, onFinish }: { active: ActiveWorkout; onFinish: (w: WorkoutLog) => void }) {
+  const history = useStore((s) => s.workouts)
+  const restScale = useStore((s) => s.profile?.restScale ?? 1)
+  const plan = planById(active.planId)
+  const steps = useMemo(() => planSteps(plan, active.equipment), [plan, active.equipment])
+  const now = useNow()
+  const [phase, setPhase] = useState<Phase>({ kind: 'ready' })
+  const idx = nextIndex(steps, active.step, active.skipped)
+  const step: Step | undefined = steps[idx]
+  const target = step ? targetFor(step.exercise, step.block, step.setNo, history) : null
+  const [weight, setWeight] = useState(0)
+  const [reps, setReps] = useState(0)
+  const beeped = useRef(-1)
+
+  useEffect(() => {
+    void keepAwake(true)
+    return () => void keepAwake(false)
+  }, [])
+
+  // prefill inputs with the target when the step changes
+  useEffect(() => {
+    if (!target) return
+    const prevSame = [...active.sets].reverse().find((s) => s.exerciseId === step!.exercise.id)
+    setWeight(prevSame?.weight || target.weight)
+    setReps(target.reps)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx])
+
+  const update = (fn: (a: ActiveWorkout) => ActiveWorkout) => setState((s) => (s.active ? { ...s, active: fn(s.active) } : s))
+
+  const logSet = (set: SetLog, advanceTo = idx + 1) => update((a) => ({ ...a, sets: [...a.sets, set], step: advanceTo }))
+
+  const isInterval = step?.exercise.kind === 'interval'
+
+  // timer transitions
+  useEffect(() => {
+    if (phase.kind === 'ready') return
+    const left = Math.ceil((phase.endAt - now) / 1000)
+    if (left <= 3 && left > 0 && beeped.current !== left) {
+      beeped.current = left
+      beep(1, 660)
+    }
+    if (now < phase.endAt) return
+    beeped.current = -1
+    if (phase.kind === 'work') {
+      beep(2, 990)
+      const rest = Math.round(step!.block.rest * restScale)
+      setPhase({ kind: 'rest', endAt: Date.now() + rest * 1000 })
+      return
+    }
+    // rest finished
+    beep(2, 990)
+    if (isInterval && phase.pending === undefined) {
+      // interval round: log output now, roll into the next round automatically
+      const nextIdx = nextIndex(steps, idx + 1, active.skipped)
+      logSet({ exerciseId: step!.exercise.id, weight: 0, reps, ts: Date.now() })
+      const nxt = steps[nextIdx]
+      if (nxt && nxt.exercise.kind === 'interval' && nxt.blockIndex === step!.blockIndex) {
+        setPhase({ kind: 'work', endAt: Date.now() + (nxt.block.work ?? 30) * 1000 })
+      } else setPhase({ kind: 'ready' })
+      return
+    }
+    setPhase({ kind: 'ready' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now])
+
+  const finish = () => {
+    const a = getState().active
+    if (!a) return
+    const log: WorkoutLog = {
+      id: uid(), date: dayKey(), planId: plan.id, planName: plan.name, type: plan.type, equipment: a.equipment,
+      start: a.start, end: Date.now(), sets: a.sets,
+    }
+    setState((s) => ({ ...s, active: null, workouts: [...s.workouts, log] }))
+    onFinish(log)
+  }
+
+  // all steps done
+  if (!step) {
+    return (
+      <div className="screen center">
+        <h1>Done! 💪</h1>
+        <button className="primary big-btn" onClick={finish}>Save workout</button>
+      </div>
+    )
+  }
+
+  const elapsed = (now - active.start) / 1000
+  const doneCount = active.sets.length + active.skipped.length
+  const pace = elapsed / 60 / GOAL_MIN
+  const progress = doneCount / steps.length
+  const nextStep = steps[nextIndex(steps, idx + 1, active.skipped)]
+  const unit = step.exercise.unit ?? (step.exercise.kind === 'hold' ? 'sec' : 'reps')
+
+  const doneSet = () => {
+    unlockAudio()
+    const set: SetLog = { exerciseId: step.exercise.id, weight: step.exercise.kind === 'weighted' ? weight : 0, reps, ts: Date.now() }
+    logSet(set)
+    const rest = Math.round(step.block.rest * restScale)
+    if (nextStep && rest > 0) setPhase({ kind: 'rest', endAt: Date.now() + rest * 1000, pending: set })
+  }
+
+  const skip = () => {
+    update((a) => ({ ...a, skipped: [...a.skipped, idx], step: idx + 1 }))
+    setPhase({ kind: 'ready' })
+  }
+
+  const left = phase.kind === 'ready' ? 0 : Math.max(0, (phase.endAt - now) / 1000)
+
+  return (
+    <div className="screen runner">
+      <div className="runner-top">
+        <div>
+          <div className={`clock ${pace > progress + 0.15 ? 'warn' : ''}`}>{fmtClock(elapsed)}</div>
+          <div className="muted small">{plan.name} · goal {GOAL_MIN}:00</div>
+        </div>
+        <button className="ghost" onClick={() => (confirm('End workout now and save what you did?') ? finish() : null)}>End</button>
+      </div>
+      <div className="bar"><div className="bar-fill" style={{ width: `${progress * 100}%` }} /></div>
+
+      {phase.kind === 'work' && (
+        <div className="timer-big work">
+          <div className="phase-label">GO</div>
+          <div className="countdown">{Math.ceil(left)}</div>
+          <div className="ex-name">{step.exercise.name}</div>
+          <div className="muted">Round {step.setNo}/{step.sets} · {step.exercise.cue}</div>
+        </div>
+      )}
+
+      {phase.kind === 'rest' && (
+        <div className="timer-big rest">
+          <div className="phase-label">REST</div>
+          <div className="countdown">{Math.ceil(left)}</div>
+          {isInterval && phase.pending === undefined ? (
+            <>
+              <Stepper label={`${unit} this round`} value={reps} onChange={setReps} />
+              {target?.last && <div className="muted">Last time: {target.last.reps} {unit}</div>}
+            </>
+          ) : (
+            <div className="up-next">
+              <div className="muted small">UP NEXT</div>
+              <div className="ex-name">{step.exercise.name}</div>
+              <div className="muted">Set {step.setNo}/{step.sets}{target?.last ? ` · last: ${fmtSet(target.last, step.exercise.kind === 'weighted', unit)}` : ''}</div>
+            </div>
+          )}
+          <div className="row">
+            <button onClick={() => setPhase({ ...phase, endAt: phase.endAt + 15000 })}>+15s</button>
+            <button className="primary" onClick={() => setPhase({ ...phase, endAt: Date.now() })}>Skip rest</button>
+          </div>
+        </div>
+      )}
+
+      {phase.kind === 'ready' && (
+        <div className="set-card">
+          <div className="muted small">
+            {step.block.slots.length > 1 ? 'SUPERSET · ' : ''}
+            {isInterval ? `Round ${step.setNo} of ${step.sets}` : `Set ${step.setNo} of ${step.sets}`}
+          </div>
+          <div className="ex-name">{step.exercise.name}</div>
+          <div className="muted">{step.exercise.cue}</div>
+
+          {target && (
+            <div className="target">
+              <div>
+                <div className="muted small">LAST TIME</div>
+                <div>{target.last ? fmtSet(target.last, step.exercise.kind === 'weighted', unit) : '—'}</div>
+              </div>
+              <div>
+                <div className="muted small">BEAT IT</div>
+                <div className="accent">{isInterval ? `${target.reps || '?'} ${unit}` : fmtSet({ weight: target.weight, reps: target.reps } as SetLog, step.exercise.kind === 'weighted', unit)}</div>
+              </div>
+            </div>
+          )}
+          {target && <div className="muted small">{target.note}</div>}
+
+          {isInterval ? (
+            <button
+              className="primary big-btn"
+              onClick={() => {
+                unlockAudio()
+                setPhase({ kind: 'work', endAt: Date.now() + (step.block.work ?? 30) * 1000 })
+              }}
+            >
+              Start {step.block.work}s round
+            </button>
+          ) : (
+            <>
+              <div className="row">
+                {step.exercise.kind === 'weighted' && <Stepper label="lb" value={weight} onChange={setWeight} step={5} />}
+                <Stepper label={unit} value={reps} onChange={setReps} step={step.exercise.kind === 'hold' ? 5 : 1} />
+              </div>
+              <button className="primary big-btn" onClick={doneSet}>Done ✓</button>
+            </>
+          )}
+          <button className="ghost" onClick={skip}>Skip this {isInterval ? 'round' : 'set'}</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function nextIndex(steps: Step[], from: number, skipped: number[]) {
+  let i = from
+  while (i < steps.length && skipped.includes(i)) i++
+  return i
+}
+
+function fmtSet(s: Pick<SetLog, 'weight' | 'reps'>, weighted: boolean, unit: string) {
+  return weighted && s.weight ? `${s.weight} lb × ${s.reps}` : `${s.reps} ${unit}`
+}
+
+function Summary({ log, onClose }: { log: WorkoutLog; onClose: () => void }) {
+  const all = useStore((s) => s.workouts)
+  const prior = all.filter((w) => w.id !== log.id)
+  const prs = newPRs(prior, log.sets)
+  const lastSame = [...prior].reverse().find((w) => w.planId === log.planId)
+  const vol = volume(log.sets)
+  const lastVol = lastSame ? volume(lastSame.sets) : 0
+  const mins = (log.end - log.start) / 60000
+  const st = streak(all)
+  const names = new Map(PLANS.flatMap((p) => (['gym', 'dumbbells', 'bodyweight'] as Equipment[]).flatMap((eq) => planSteps(p, eq).map((s) => [s.exercise.id, s.exercise.name] as const))))
+
+  return (
+    <div className="screen center">
+      <div className="flame">🔥 {st.count}</div>
+      <h1>{st.count > 1 ? `${st.count}-day streak!` : 'Streak started!'}</h1>
+      <Card>
+        <div className="stat-row"><span>Time</span><b className={mins <= GOAL_MIN ? 'good' : ''}>{fmtClock(mins * 60)}</b></div>
+        <div className="stat-row"><span>Sets</span><b>{log.sets.length}</b></div>
+        {vol > 0 && (
+          <div className="stat-row">
+            <span>Volume</span>
+            <b>
+              {vol.toLocaleString()} lb{' '}
+              {lastVol > 0 && <span className={vol >= lastVol ? 'good' : 'warn'}>({vol >= lastVol ? '+' : ''}{Math.round(((vol - lastVol) / lastVol) * 100)}%)</span>}
+            </b>
+          </div>
+        )}
+      </Card>
+      {prs.length > 0 && (
+        <Card className="highlight">
+          <h2>🏆 New records</h2>
+          {prs.map((p) => (
+            <div key={p.exerciseId}>{names.get(p.exerciseId) ?? p.exerciseId}: {p.weight ? `${p.weight} lb × ${p.reps}` : p.reps}</div>
+          ))}
+        </Card>
+      )}
+      <button className="primary big-btn" onClick={onClose}>Nice</button>
+    </div>
+  )
+}
