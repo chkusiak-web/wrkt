@@ -11,7 +11,7 @@ import { useNow } from '../lib/useNow'
 import { useNav } from '../nav'
 import { Led } from '../led/Led'
 import { FLAME_REF } from '../led/engine'
-import { Back, Bar, Bottom, HoldBtn, Label, LedStepper, Screen, useReorder } from '../components/kit'
+import { Back, Bar, Bottom, HoldBtn, Label, LedStepper, Screen, moveItem, useReorder } from '../components/kit'
 import Bird from '../components/Bird'
 import SwapList from './SwapList'
 
@@ -68,10 +68,32 @@ function Run({ active, p }: { active: ActiveWorkout; p: PhoenixState }) {
   const [rating, setRating] = useState<'easy' | 'hard' | undefined>(undefined)
   const beeped = useRef(-1)
 
+  // Back: every step forward saves where you were, so Back undoes it (the set you just logged comes off)
+  const hist = useRef<{ a: Pick<ActiveWorkout, 'step' | 'sets' | 'skipped' | 'blocks' | 'overruns'>; phase: Phase; reps: number; weight: number }[]>([])
+  const restoring = useRef<{ reps: number; weight: number } | null>(null)
+  const push = () => {
+    const a = getState().active
+    if (a) hist.current.push({ a: { step: a.step, sets: a.sets, skipped: a.skipped, blocks: a.blocks, overruns: a.overruns }, phase: phase.k === 'rest' || phase.k === 'exdone' ? { k: 'auto' } : phase, reps, weight })
+  }
+  const goBack = () => {
+    const h = hist.current.pop()
+    if (!h) return nav.reset({ s: 'home' }) // the workout stays open; Home shows Resume
+    restoring.current = { reps: h.reps, weight: h.weight }
+    setReps(h.reps)
+    setWeight(h.weight)
+    update((a) => ({ ...a, ...h.a }))
+    setPhase(h.phase)
+  }
+  const backBtn = <button className="link" style={{ paddingRight: 14 }} onClick={goBack}>‹ Back</button>
+
   // prefill with the target (or the weight you just used) when the move changes
   const prefillKey = step ? `${idx}:${step.exercise.id}` : ''
   useEffect(() => {
     if (!step || !target) return
+    if (restoring.current) {
+      restoring.current = null
+      return
+    }
     const prevSame = [...active.sets].reverse().find((s) => s.exerciseId === step.exercise.id)
     setWeight(prevSame?.weight || target.weight)
     setReps(prevSame && step.exercise.kind !== 'weighted' ? prevSame.reps : target.reps)
@@ -98,7 +120,7 @@ function Run({ active, p }: { active: ActiveWorkout; p: PhoenixState }) {
   const end = () => setPhase({ k: 'done' })
   const top = (planLink = true) => (
     <Bar
-      left={clock}
+      left={<>{backBtn}{clock}</>}
       right={
         <>
           {planLink && <button className="link pad" onClick={() => setPhase({ k: 'mid' })}>Plan</button>}
@@ -108,9 +130,10 @@ function Run({ active, p }: { active: ActiveWorkout; p: PhoenixState }) {
     />
   )
 
-  if (phase.k === 'exdone') return <ExerciseDone exId={phase.exId} block={plan.blocks[phase.block]} active={active} history={history} clock={clock} planName={plan.name} onEnd={end} onNext={() => setPhase({ k: 'auto' })} />
+  if (phase.k === 'exdone') return <ExerciseDone exId={phase.exId} block={plan.blocks[phase.block]} active={active} history={history} clock={<>{backBtn}{clock}</>} planName={plan.name} onEnd={end} onNext={() => setPhase({ k: 'auto' })} />
 
-  if (phase.k === 'done' || !step) return <DoneView active={active} steps={steps} p={p} rating={rating} setRating={setRating} allDone={!step} onResume={() => setPhase({ k: 'auto' })} onMore={() => {
+  if (phase.k === 'done' || !step) return <DoneView active={active} steps={steps} p={p} rating={rating} setRating={setRating} allDone={!step} onBack={() => (step ? setPhase({ k: 'auto' }) : goBack())} onResume={() => setPhase({ k: 'auto' })} onMore={() => {
+    push()
     const strength = plan.blocks.filter((b) => !isCardioBlock(b))
     const last = strength[strength.length - 1] ?? plan.blocks[0]
     update((a) => ({ ...a, blocks: [...activePlan(a).blocks, { ...last, slots: [last.slots[0]], sets: 1 }] }))
@@ -130,7 +153,7 @@ function Run({ active, p }: { active: ActiveWorkout; p: PhoenixState }) {
         inPlan={plan.blocks.flatMap((b) => b.slots)}
         eq={active.equipment}
         ms={muscleStates(getState())}
-        backLabel="Plan"
+        backLabel="Back"
         onBack={() => setPhase({ k: 'auto' })}
         onPick={(to) => {
           // swap this move for the rest of the workout; recovery uses what was logged, so tomorrow adapts
@@ -147,7 +170,7 @@ function Run({ active, p }: { active: ActiveWorkout; p: PhoenixState }) {
       <RestView
         secs={secs}
         total={phase.total}
-        clock={clock}
+        clock={<>{backBtn}{clock}</>}
         name={step.exercise.name}
         sub={step.exercise.kind === 'weighted' && weight ? `${weight} × ${nt.reps}` : `${nt.reps || reps} ${unitOf(step)}`}
         onEnd={end}
@@ -160,7 +183,7 @@ function Run({ active, p }: { active: ActiveWorkout; p: PhoenixState }) {
     )
   }
 
-  if (isCardioKind(step.exercise.kind)) return <Finisher key={step.blockIndex} step={step} steps={steps} idx={idx} history={history} top={top()} />
+  if (isCardioKind(step.exercise.kind)) return <Finisher key={`${step.blockIndex}:${idx}`} step={step} steps={steps} idx={idx} history={history} top={top()} onChange={push} />
 
   // ---- lifting: goals before the first set, then log each set ----
   const unit = unitOf(step)
@@ -172,6 +195,7 @@ function Run({ active, p }: { active: ActiveWorkout; p: PhoenixState }) {
 
   const doneSet = () => {
     unlockAudio()
+    push()
     const set: SetLog = { exerciseId: step.exercise.id, weight: weighted ? weight : 0, reps, ts: Date.now() }
     update((a) => ({ ...a, sets: [...a.sets, set], step: idx + 1 }))
     if (lastSet) return setPhase({ k: 'exdone', exId: step.exercise.id, block: step.blockIndex })
@@ -180,11 +204,13 @@ function Run({ active, p }: { active: ActiveWorkout; p: PhoenixState }) {
     setPhase(more && rest > 0 ? { k: 'rest', endAt: Date.now() + rest * 1000, total: rest } : { k: 'auto' })
   }
   const skipSet = () => {
+    push()
     update((a) => ({ ...a, skipped: [...a.skipped, idx], step: idx + 1 }))
     setPhase({ k: 'auto' })
   }
   // skip the whole move: every set of it left in this block
   const skipMove = () => {
+    push()
     const rest = steps.map((s, i) => (i >= idx && s.blockIndex === step.blockIndex && s.slot === step.slot ? i : -1)).filter((i) => i >= 0)
     update((a) => ({ ...a, skipped: [...a.skipped, ...rest], step: idx === a.step ? idx + 1 : a.step }))
   }
@@ -223,7 +249,7 @@ function Run({ active, p }: { active: ActiveWorkout; p: PhoenixState }) {
       {goals ? (
         <Bottom
           left={<button className="link pad-x" onClick={skipMove}>Skip</button>}
-          main={<button className="btn primary" onClick={() => { unlockAudio(); setPhase({ k: 'log' }) }}>Start</button>}
+          main={<button className="btn primary" onClick={() => { unlockAudio(); push(); setPhase({ k: 'log' }) }}>Start</button>}
           right={primaryMuscle(step.slot) ? <button className="link pad-x" onClick={() => setPhase({ k: 'swap' })}>Swap</button> : null}
         />
       ) : (
@@ -313,7 +339,7 @@ function ExerciseDone({ exId, block, active, history, clock, planName, onEnd, on
 }
 
 /** Cardio finisher: a clock that runs down, the flame rising under it, and your total at the end. */
-function Finisher({ step, steps, idx, history, top }: { step: Step; steps: Step[]; idx: number; history: WorkoutLog[]; top: ReactNode }) {
+function Finisher({ step, steps, idx, history, top, onChange }: { step: Step; steps: Step[]; idx: number; history: WorkoutLog[]; top: ReactNode; onChange: () => void }) {
   const now = useNow(250)
   const [start] = useState(() => Date.now())
   const bl = step.block
@@ -341,6 +367,7 @@ function Finisher({ step, steps, idx, history, top }: { step: Step; steps: Step[
 
   const unit = ex.kind === 'cardio' ? 'min' : level ? 'effort' : `total ${ex.unit ?? 'reps'}`
   const finish = () => {
+    onChange()
     const ts = Date.now()
     const sets: SetLog[] =
       ex.kind === 'cardio' || rounds === 1
@@ -349,7 +376,10 @@ function Finisher({ step, steps, idx, history, top }: { step: Step; steps: Step[
     // a steady block logs once but covers all its steps
     update((a) => ({ ...a, sets: [...a.sets, ...sets], skipped: ex.kind === 'cardio' ? [...a.skipped, ...mine.slice(1)] : a.skipped, step: mine[mine.length - 1] + 1 }))
   }
-  const skip = () => update((a) => ({ ...a, skipped: [...a.skipped, ...mine], step: mine[mine.length - 1] + 1 }))
+  const skip = () => {
+    onChange()
+    update((a) => ({ ...a, skipped: [...a.skipped, ...mine], step: mine[mine.length - 1] + 1 }))
+  }
   const shown = ex.kind === 'cardio' && left === 0 ? el - total : left
 
   return (
@@ -386,16 +416,7 @@ function MidPlan({ active, step, onDone }: { active: ActiveWorkout; step: Step; 
   const eq = active.equipment
   const setBlocks = (fn: (bl: PlanBlock[]) => PlanBlock[]) => update((a) => ({ ...a, blocks: fn(activePlan(a).blocks) }))
   const change = (i: number, fn: (b: PlanBlock) => PlanBlock | null) => setBlocks((bl) => bl.flatMap((b, j) => (j === i ? (fn(b) ? [fn(b)!] : []) : [b])))
-  const handle = useReorder((from, to) =>
-    setBlocks((bl) => {
-      const i = cur + 1 + from
-      const j = cur + 1 + to
-      if (j <= cur || j >= bl.length) return bl
-      const out = [...bl]
-      ;[out[i], out[j]] = [out[j], out[i]]
-      return out
-    }),
-  )
+  const handle = useReorder((from, to) => setBlocks((bl) => (cur + 1 + to >= bl.length ? bl : moveItem(bl, cur + 1 + from, cur + 1 + to))))
   const inPlan = plan.blocks.flatMap((bl) => bl.slots)
   const add = swapOptions('', inPlan, muscleStates(getState())).slice(0, 3)
   const names = (bl: PlanBlock) => bl.slots.map((sl) => exerciseFor(sl, eq).name).join(' + ')
@@ -477,9 +498,9 @@ function saveWorkout(rating: 'easy' | 'hard' | undefined) {
   setState((st) => ({ ...st, active: null, workouts: [...st.workouts, log] }))
 }
 
-function DoneView({ active, steps, p, rating, setRating, allDone, onResume, onMore, onSave }: {
+function DoneView({ active, steps, p, rating, setRating, allDone, onBack, onResume, onMore, onSave }: {
   active: ActiveWorkout; steps: Step[]; p: PhoenixState; rating: 'easy' | 'hard' | undefined; setRating: (r: 'easy' | 'hard' | undefined) => void
-  allDone: boolean; onResume: () => void; onMore: () => void; onSave: () => void
+  allDone: boolean; onBack: () => void; onResume: () => void; onMore: () => void; onSave: () => void
 }) {
   const history = useStore((s) => s.workouts)
   const bird = useRef<HTMLCanvasElement>(null)
@@ -509,7 +530,8 @@ function DoneView({ active, steps, p, rating, setRating, allDone, onResume, onMo
   ]
   return (
     <Screen scroll>
-      <div className="head" style={{ alignItems: 'center', flex: 'none' }}>
+      <Bar left={<Back label="Back" onClick={onBack} />} />
+      <div className="head" style={{ alignItems: 'center', flex: 'none', marginTop: -8 }}>
         <span className="title">Done</span>
         {allDone ? (
           <button className="btn" aria-label="Go beyond the plan for 30 more XP" onClick={onMore}>+1 more set</button>

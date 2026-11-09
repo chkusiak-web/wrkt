@@ -245,7 +245,12 @@ export function estimateMin(plan: Plan) {
   return Math.round(sec / 60)
 }
 
-export const exerciseFor = (slot: string, eq: Equipment): Exercise => SLOTS[slot][eq]
+/** A slot can pin one equipment's version, e.g. "vpush@dumbbells" for the dumbbell press at a gym. */
+export const baseSlot = (slot: string) => slot.split('@')[0]
+export const exerciseFor = (slot: string, eq: Equipment): Exercise => {
+  const [b, pin] = slot.split('@')
+  return SLOTS[b][(pin as Equipment) || eq]
+}
 
 export interface Step {
   blockIndex: number
@@ -293,8 +298,56 @@ export const SLOT_MUSCLES: Record<string, Partial<Record<Muscle, number>>> = {
 /** Lifting slots the coach may swap between. */
 export const STRENGTH_SLOTS = Object.keys(SLOT_MUSCLES).filter((s) => s !== 'climb')
 
+type M = Partial<Record<Muscle, number>>
+const lib = (id: string, name: string, muscles: M, cue: string, kind: Exercise['kind'] = 'weighted', unit?: string) => ({ id, name, muscles, cue, kind, unit })
+/** Extra moves you can swap in from search. Same move for every equipment setup. */
+const LIBRARY = [
+  lib('db-seated-press', 'Seated Dumbbell Shoulder Press', { shoulders: 1, triceps: 0.5 }, 'Back on the bench, press up, elbows slightly forward.'),
+  lib('machine-shoulder-press', 'Machine Shoulder Press', { shoulders: 1, triceps: 0.5 }, 'Handles at shoulder height, press up, slow down.'),
+  lib('arnold-press', 'Arnold Press', { shoulders: 1, triceps: 0.5 }, 'Palms in at the bottom, rotate out as you press.'),
+  lib('lateral-raise', 'Lateral Raise', { shoulders: 1 }, 'Light weight, lead with elbows, stop at shoulder height.'),
+  lib('machine-chest-press', 'Machine Chest Press', { chest: 1, triceps: 0.5, shoulders: 0.5 }, 'Shoulder blades back, press and control.'),
+  lib('chest-fly', 'Cable / Dumbbell Fly', { chest: 1 }, 'Soft elbows, hug a big tree, squeeze.'),
+  lib('dips', 'Dips', { triceps: 1, chest: 0.5 }, 'Lean slightly forward, elbows back. Assist if needed.', 'reps'),
+  lib('pullup', 'Pull-up', { back: 1, biceps: 0.5 }, 'Full hang, chest to bar. Use assist or a band if needed.', 'reps'),
+  lib('assisted-pullup', 'Assisted Pull-up Machine', { back: 1, biceps: 0.5 }, 'Log the assist weight. Less assist is progress.'),
+  lib('chest-row', 'Chest-Supported Row', { back: 1, biceps: 0.5 }, 'Chest on the pad, pull elbows back.'),
+  lib('db-shrug', 'Dumbbell Shrug', { back: 1 }, 'Straight up, pause, no rolling.'),
+  lib('db-curl', 'Dumbbell Curl', { biceps: 1 }, 'Elbows pinned, no swinging.'),
+  lib('hammer-curl', 'Hammer Curl', { biceps: 1 }, 'Thumbs up, elbows pinned.'),
+  lib('cable-curl', 'Cable Curl', { biceps: 1 }, 'Elbows pinned, squeeze at the top.'),
+  lib('tri-pushdown', 'Tricep Pushdown', { triceps: 1 }, 'Elbows at your sides, lock out.'),
+  lib('overhead-tri', 'Overhead Tricep Extension', { triceps: 1 }, 'Elbows up and in, full stretch.'),
+  lib('leg-press', 'Leg Press', { quads: 1, glutes: 0.5 }, 'Feet shoulder width, knees track toes, no lockout.'),
+  lib('leg-extension', 'Leg Extension', { quads: 1 }, 'Pause at the top, slow down.'),
+  lib('leg-curl', 'Leg Curl', { hamstrings: 1 }, 'Hips down, curl and squeeze.'),
+  lib('bulgarian', 'Bulgarian Split Squat', { quads: 1, glutes: 0.5 }, 'Back foot on a bench. Reps per leg.'),
+  lib('smith-squat', 'Smith Machine Squat', { quads: 1, glutes: 0.5, core: 0.5 }, 'Feet a bit forward, sit down between your hips.'),
+  lib('back-extension', 'Back Extension', { glutes: 1, hamstrings: 0.5, back: 0.5 }, 'Hinge at the hips, squeeze glutes at the top.', 'reps'),
+  lib('hip-abduction', 'Hip Abduction Machine', { glutes: 1 }, 'Push out, pause, slow back.'),
+  lib('cable-kickback', 'Cable Glute Kickback', { glutes: 1 }, 'Kick back and up, squeeze. Reps per leg.'),
+  lib('seated-calf', 'Seated Calf Raise', { calves: 1 }, 'Full stretch, pause at the top.'),
+  lib('cable-crunch', 'Cable Crunch', { core: 1 }, 'Curl ribs to hips, hips stay still.'),
+  lib('russian-twist', 'Russian Twist', { core: 1 }, 'Lean back, rotate side to side. Count both sides.', 'reps'),
+  lib('ab-wheel', 'Ab Wheel Rollout', { core: 1 }, 'Ribs down, roll only as far as you can control.', 'reps'),
+  lib('side-plank', 'Side Plank', { core: 1 }, 'Hips high. Seconds per side.', 'hold', 'sec'),
+]
+for (const x of LIBRARY) {
+  const ex: Exercise = { id: x.id, name: x.name, kind: x.kind, cue: x.cue, ...(x.unit ? { unit: x.unit } : {}) }
+  SLOTS[x.id] = { gym: ex, dumbbells: ex, bodyweight: ex }
+  SLOT_MUSCLES[x.id] = x.muscles
+}
+/** Everything you can swap in from search: the coach's slots plus the library. */
+export const LIFT_SLOTS = [...STRENGTH_SLOTS, ...LIBRARY.map((x) => x.id)]
+/** The other equipment versions of a slot, pinned, e.g. the dumbbell press while at the gym. */
+export const variantsOf = (slot: string, eq: Equipment) =>
+  (['gym', 'dumbbells', 'bodyweight'] as Equipment[])
+    .filter((e) => e !== eq && SLOTS[slot]?.[e] && SLOTS[slot][e].id !== SLOTS[slot][eq].id)
+    .map((e) => `${slot}@${e}`)
+
+export const slotMuscles = (slot: string): M => SLOT_MUSCLES[baseSlot(slot)] ?? {}
 export const primaryMuscle = (slot: string): Muscle | undefined =>
-  (Object.entries(SLOT_MUSCLES[slot] ?? {}) as [Muscle, number][]).sort((a, b) => b[1] - a[1])[0]?.[0]
+  (Object.entries(slotMuscles(slot)) as [Muscle, number][]).sort((a, b) => b[1] - a[1])[0]?.[0]
 
 const SLOT_BY_EXERCISE = new Map<string, string>()
 const EXERCISE_BY_ID = new Map<string, Exercise>()
@@ -316,7 +369,7 @@ export const activePlan = (a: { planId: string; blocks?: PlanBlock[] }): Plan =>
 export const CARDIO_SLOTS = ['finisher', 'intervals', 'circuit1', 'circuit2', 'skater', 'climb', 'walk', 'mobility']
 
 /** A block that's all cardio (intervals or steady minutes). */
-export const isCardioBlock = (bl: PlanBlock) => bl.slots.every((s) => CARDIO_SLOTS.includes(s))
+export const isCardioBlock = (bl: PlanBlock) => bl.slots.every((s) => CARDIO_SLOTS.includes(baseSlot(s)))
 
 /** Where the cardio finisher starts: the trailing cardio blocks after the lifting. */
 export function finisherStart(blocks: PlanBlock[]) {

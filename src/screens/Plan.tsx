@@ -6,7 +6,7 @@ import { MUSCLE_LABEL, muscleStates, suggest } from '../lib/coach'
 import { setDraft, setDraftEq, useDraft, useDraftEq } from '../lib/draft'
 import { unlockAudio } from '../lib/fx'
 import { useNav } from '../nav'
-import { Back, Bar, Label, Screen, useReorder } from '../components/kit'
+import { Back, Bar, Label, Screen, moveItem, useReorder } from '../components/kit'
 import { LedMeter } from '../led/Led'
 import SwapList from './SwapList'
 
@@ -48,14 +48,7 @@ export function PlanScreen() {
   const { sug, draft, eq, plan, swapped, edit } = usePlanDraft()
   const fin = finisherStart(plan.blocks)
   const keys = blockKeys(plan.blocks)
-  const handle = useReorder((from, to) =>
-    edit((b) => {
-      if (to < 0 || to >= fin) return b
-      const out = [...b]
-      ;[out[from], out[to]] = [out[to], out[from]]
-      return out
-    }),
-  )
+  const handle = useReorder((from, to) => edit((b) => (to < 0 || to >= fin ? b : moveItem(b, from, to))))
   const coach = !draft?.picked
   const nSwaps = plan.blocks.flatMap((b) => b.slots).filter((s) => swapped.includes(s)).length
 

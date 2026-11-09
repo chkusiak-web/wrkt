@@ -265,3 +265,4 @@ details.card summary { cursor: pointer; color: var(--muted); }
   .rate { margin-bottom: 4px; }
   .panels { gap: 10px; }
 }
+[data-drag].dragging { position: relative; z-index: 2; background: #141113; box-shadow: 0 6px 18px #000a; }

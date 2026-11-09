@@ -130,46 +130,74 @@ export function Chips<T extends string | number>({ options, value, onChange, sma
 
 /**
  * Drag to reorder: put data-drag on each item (siblings in one container) and spread handle(i) on its grip.
- * Items swap as soon as you drag past half a neighbour.
+ * The item follows your finger and the others slide out of the way; the new order is saved when you let go.
+ * onMove(from, to) moves one item from index from to index to.
  */
 export function useReorder(onMove: (from: number, to: number) => void) {
-  const st = useRef<{ i: number; y: number; el: HTMLElement } | null>(null)
+  const st = useRef<{ i: number; y: number; el: HTMLElement; sibs: HTMLElement[]; to: number } | null>(null)
   const move = useRef(onMove)
   move.current = onMove
-  const end = () => {
+  const clear = () => {
     const s = st.current
     if (!s) return
-    s.el.style.transform = ''
+    for (const el of [s.el, ...s.sibs]) {
+      el.style.transform = ''
+      el.style.transition = ''
+    }
     s.el.classList.remove('dragging')
     st.current = null
   }
   return (i: number) => ({
     onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
       const el = e.currentTarget.closest('[data-drag]') as HTMLElement | null
-      if (!el) return
+      if (!el?.parentElement) return
       e.preventDefault()
       e.currentTarget.setPointerCapture(e.pointerId)
-      st.current = { i, y: e.clientY, el }
+      const sibs = [...el.parentElement.children].filter((c) => c !== el && c.hasAttribute('data-drag')) as HTMLElement[]
+      for (const c of sibs) c.style.transition = 'transform 150ms ease'
+      st.current = { i, y: e.clientY, el, sibs, to: i }
       el.classList.add('dragging')
     },
     onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
       const s = st.current
       if (!s) return
-      let dy = e.clientY - s.y
-      const sib = (dy < 0 ? s.el.previousElementSibling : s.el.nextElementSibling) as HTMLElement | null
-      if (sib?.hasAttribute('data-drag')) {
-        const hgt = sib.getBoundingClientRect().height
-        if (Math.abs(dy) > hgt / 2) {
-          const d = dy < 0 ? -1 : 1
-          move.current(s.i, s.i + d)
-          s.i += d
-          s.y += d * hgt
-          dy = e.clientY - s.y
-        }
-      }
+      const dy = e.clientY - s.y
       s.el.style.transform = `translateY(${dy}px)`
+      const h = s.el.getBoundingClientRect().height
+      const all = [...s.el.parentElement!.children].filter((c) => c.hasAttribute('data-drag')) as HTMLElement[]
+      // the slot the dragged item's middle is over, counting the others' resting positions
+      const r0 = s.el.getBoundingClientRect()
+      const mid = r0.top + r0.height / 2
+      let to = s.i
+      for (let k = 0; k < all.length; k++) {
+        const c = all[k]
+        if (c === s.el) continue
+        const r = c.getBoundingClientRect()
+        const restTop = r.top - (parseFloat(c.style.transform.replace(/[^-\d.]/g, '')) || 0)
+        const cm = restTop + r.height / 2
+        if (k < s.i && mid < cm) to = Math.min(to, k)
+        if (k > s.i && mid > cm) to = Math.max(to, k)
+      }
+      s.to = to
+      all.forEach((c, k) => {
+        if (c === s.el) return
+        const shift = to < s.i && k >= to && k < s.i ? h : to > s.i && k <= to && k > s.i ? -h : 0
+        c.style.transform = shift ? `translateY(${shift}px)` : ''
+      })
     },
-    onPointerUp: end,
-    onPointerCancel: end,
+    onPointerUp: () => {
+      const s = st.current
+      clear()
+      if (s && s.to !== s.i) move.current(s.i, s.to)
+    },
+    onPointerCancel: clear,
   })
+}
+
+/** Move one item in a list from one index to another. */
+export function moveItem<T>(list: T[], from: number, to: number) {
+  const out = [...list]
+  const [x] = out.splice(from, 1)
+  out.splice(to, 0, x)
+  return out
 }

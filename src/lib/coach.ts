@@ -1,5 +1,5 @@
 import { MUSCLES, type AppState, type Muscle, type Plan, type PlanBlock, type WorkoutLog } from '../types'
-import { PLANS, SLOT_MUSCLES, STRENGTH_SLOTS, planById, primaryMuscle, slotOfExercise } from './plans'
+import { PLANS, SLOT_MUSCLES, STRENGTH_SLOTS, baseSlot, planById, primaryMuscle, slotMuscles, slotOfExercise } from './plans'
 
 const HOUR = 3600_000
 /** Weighted sets per muscle that count as a real session for the 2x/week goal. */
@@ -69,7 +69,7 @@ function planShares(blocks: PlanBlock[]) {
   let total = 0
   for (const bl of blocks)
     for (const slot of bl.slots)
-      for (const [k, v] of Object.entries(SLOT_MUSCLES[slot] ?? {}) as [Muscle, number][]) {
+      for (const [k, v] of Object.entries(slotMuscles(slot)) as [Muscle, number][]) {
         load[k] = (load[k] ?? 0) + v * bl.sets
         total += v * bl.sets
       }
@@ -126,7 +126,7 @@ export function suggest(state: Pick<AppState, 'workouts' | 'cardio'>, now = Date
     ...bl,
     slots: bl.slots.map((slot) => {
       const pm = primaryMuscle(slot)
-      if (!pm || !STRENGTH_SLOTS.includes(slot) || ms[pm].ready >= 0.6) return slot
+      if (!pm || !STRENGTH_SLOTS.includes(baseSlot(slot)) || ms[pm].ready >= 0.6) return slot
       let pick: string | null = null
       let pickWant = want(ms[pm]) + 0.1
       for (const alt of STRENGTH_SLOTS) {
