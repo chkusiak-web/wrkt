@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { AppState } from '../types'
 
 const KEY = 'wt:v1'
-const empty: AppState = { version: 1, profile: null, workouts: [], foods: [], weights: [], active: null }
+const empty: AppState = { version: 1, profile: null, workouts: [], foods: [], weights: [], cardio: [], checks: [], active: null }
 
 function load(): AppState {
   try {
