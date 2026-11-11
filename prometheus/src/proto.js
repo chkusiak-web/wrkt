@@ -42,8 +42,11 @@ let toastT;function toast(t){const e=$('#toast');e.textContent=t;e.style.bottom=
 /* ---------- Navigation ---------- */
 const TABS=['today','mind','body','soul','stats'];
 const FULL={onb:1,set:1,lock:1,rprev:1,food:1,fadd:1,run:1,rend:1,torch:1,ci1:1,ci2:1,rate:1,eve:1,lvup:1,plan:1,planflow:1,review:1};
-let cur='today',lastTab='today';
-function go(id,o={}){if(id==='back')id=lastTab;if(id==='notif'){showNotif();return}if(id==='body')setTimeout(paintBody,0);
+let cur='today',lastTab='today',HIST=[];
+function go(id,o={}){let pm=null;if(id==='planflow'){pm='tmr';id='plan'}else if(id==='plantoday'){pm='day';id='plan';if(!THREE.some(t=>t[6]!=='hero'))prefill(TODAY)}else if(id==='plan')pm='day';
+  if(id==='back'){id=HIST.pop()||lastTab;while(id===cur&&HIST.length)id=HIST.pop();if(id===cur)id=lastTab}
+  else if(id!==cur){if(TABS.includes(id))HIST=[];else if(cur)HIST.push(cur)}
+  if(id==='plan')HIST=HIST.filter(v=>!FLOWG[v]);if(id==='notif'){showNotif();return}if(id==='body')setTimeout(paintBody,0);
   closeSheet();
   const prev=cur,ti=TABS.indexOf(id),pi=TABS.indexOf(prev);
   const v=$('#v-'+id),ov=$('#v-'+prev);$$('.view').forEach(x=>{x.getAnimations().forEach(a=>a.cancel());x.classList.remove('on','leaving');x.style.zIndex=x.style.clipPath=''});
@@ -54,7 +57,7 @@ function go(id,o={}){if(id==='back')id=lastTab;if(id==='notif'){showNotif();retu
   if(id==='today'){countUp();growHome()}if(id==='mind'){radar();renderMplan()}
   if(id==='soul')skyDraw();
   if(id==='stats')renderStats();
-  if(id==='plan'){renderPlan();$$('#planSeg button')[0].click()}
+  if(id==='plan'){if(pm)planMode=pm;$$('#planSeg button')[planMode==='tmr'?1:0].click()}
   if(id==='planflow')startPF();
   if(id==='food')renderFood();
   if(id==='review')startRV();
@@ -270,7 +273,7 @@ function finishRun(){clearInterval(RUN_IV);endRest(false);const sec=Math.round((
   const h=hitMap(RUN.ex);$('#reMus').innerHTML=Object.entries(h).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`<span class="${v===2?'p':''}">${m}</span>`).join('');paintFig('#reFig',RUN.ex,null);
   $('#rePR').innerHTML=PR.map(([n,w,b])=>`<div>${n}<span>${w} · PR</span></div>`).join('');
   go('rend')}
-$('#reDone').onclick=()=>{const n=RUN?RUN.ex.reduce((t,e)=>t+e.sets.filter(s=>s.d).length,0):0;if(RUN){D.workouts.push({id:uid(),date:TODAY,name:RUN.wk,sec:RUN.sec||0,ex:RUN.ex.map(e=>({n:e.n,m:e.m,sets:e.sets.filter(s=>s.d).map(s=>({w:s.w,r:s.r}))})).filter(e=>e.sets.length)});save()}const wk=RUN&&RUN.wk,dur=RUN?Math.max(.25,Math.round((RUN.sec||0)/900)/4):1;RUN=null;D.active=null;go('body');paintBody();const kd=THREE.findIndex(t=>t[1]==='Body'&&t[4]&&t[0]===wk&&!(t[7]&&t[7].w));if(kd>=0){const t=THREE[kd];if(t[7])logBody(t[7].c,t[7].a,-Math.round(t[3]*60));t[7]={c:'Strength',a:'Strength',w:1}}let k=kd>=0?-2:THREE.findIndex(t=>t[1]==='Body'&&!t[4]&&t[6]!=='hero'&&(t[0]===wk||WORKOUTS[t[0]]));if(k<0)k=THREE.findIndex(t=>t[1]==='Body'&&!t[4]&&t[6]!=='hero');if(k>=0){THREE[k][4]=true;THREE[k][7]={c:'Strength',a:'Strength',w:1}}else if(k===-1)THREE.push([wk||'Workout','Body',null,dur,true,null,null,{c:'Strength',a:'Strength',w:1}]);setTimeout(checkWon,0);renderHome();renderPlan();save();{setTimeout(()=>checkXP(25,'Workout'),300);toast(`Workout logged · ${n} sets · counts for Body`)}};
+$('#reDone').onclick=()=>{const n=RUN?RUN.ex.reduce((t,e)=>t+e.sets.filter(s=>s.d).length,0):0;if(RUN){D.workouts.push({id:uid(),date:TODAY,name:RUN.wk,sec:RUN.sec||0,ex:RUN.ex.map(e=>({n:e.n,m:e.m,sets:e.sets.filter(s=>s.d).map(s=>({w:s.w,r:s.r}))})).filter(e=>e.sets.length)});save()}const wk=RUN&&RUN.wk,dur=RUN?Math.max(.25,Math.round((RUN.sec||0)/900)/4):1;RUN=null;D.active=null;go('body');paintBody();const kd=THREE.findIndex(t=>t[1]==='Body'&&t[4]&&t[0]===wk&&!(t[7]&&t[7].w));if(kd>=0){const t=THREE[kd];if(t[7])logBody(t[7].c,t[7].a,-Math.round(t[3]*60));t[7]={c:'Strength',a:'Strength',w:1}}let k=kd>=0?-2:THREE.findIndex(t=>t[1]==='Body'&&!t[4]&&t[6]!=='hero'&&(t[0]===wk||WORKOUTS[t[0]]));if(k===-1)k=THREE.findIndex(t=>t[1]==='Body'&&!t[4]&&t[6]!=='hero');if(k>=0){THREE[k][4]=true;THREE[k][7]={c:'Strength',a:'Strength',w:1}}else if(k===-1)THREE.push([wk||'Workout','Body',null,dur,true,null,null,{c:'Strength',a:'Strength',w:1}]);setTimeout(checkWon,0);renderHome();renderPlan();save();{setTimeout(()=>checkXP(25,'Workout'),300);toast(`Workout logged · ${n} sets · counts for Body`)}};
 const HEROES=[['Run 5K every day','Body','Run 5K'],['Train 60 min every day','Body','Train 60 min'],['60 min outside every day','Body','60 min outside'],['No coffee for 7 days','Body','No coffee today'],['Listen to one full audiobook','Mind','Audiobook 30 min'],['Write 500 words every day','Mind','Write 500 words'],['One hard conversation a day','Soul','Hard conversation']];
 function setHero(H,wk){D.hero={week:wk,text:H[0],pil:H[1],short:H[2],days:[],done:false,swaps:0};const i=THREE.findIndex(t=>t[6]==='hero');if(wk===weekStart(TODAY)){const it=[`Hero: ${H[2]}`,H[1],null,.5,false,null,'hero'];if(i>=0){if(!THREE[i][4])THREE[i]=it}else THREE.push(it)}}
 function ensureHero(){const wk=weekStart(TODAY);if(D.hero&&D.hero.week===wk)return;if(D.heroNext&&D.heroNext.week===wk){setHero(D.heroNext.h,wk);D.heroNext=null;return}
@@ -644,25 +647,30 @@ const DUR=[[.25,'15 min'],[.5,'30 min'],[1,'60 min']],dlab=d=>(DUR.find(x=>x[0]=
 function sortPlan(){THREE.sort((a,b)=>(a[2]??99)-(b[2]??99))}
 const CAL=[]; // calendar events come with the iPhone app
 const H0=7,H1=23,PX=56;
-function renderPlan(){NOW=nowH();$('#planDate').textContent=fmtDay(TODAY);$('#weekDate').textContent='Week of '+fmtDay(weekStart(TODAY)).replace(/^\w+ /,'');
-  {const pb=$('#v-plan .logp');pb.textContent=nowH()>=18&&!DAY().closed?'Close the day':'Plan tomorrow';pb.dataset.go=nowH()>=18&&!DAY().closed?'eve':'planflow'}
-  const pp=(k,lab,v,ph)=>`<button class="pp${v?' set':''}" data-pp="${k}"><span class="lab">${lab}</span><b>${v||ph}</b></button>`;
-  $('#planPact').innerHTML=pp('w',`Win 5 of 7 · ${weekWins()}/5`,WSP,'+ Week spoil')+pp('f',"If I don't · rolled",`🎲 ${FFT[ffSize(missRun+1)]} forfeit`,'');
-  $$('#planPact [data-pp]').forEach(b=>b.onclick=()=>openStakes(b.dataset.pp==='f'?null:b.dataset.pp));
-  const un=THREE.filter(x=>x[2]==null);
-  if(slPick!=null&&THREE[slPick][2]!=null)slPick=null;
-  $('#planThree').innerHTML=`<div class="trh"><span class="lab" style="color:${slPick!=null?'var(--ink)':'var(--muted)'}">${slPick!=null?'Tap a free time':'Not slotted · '+un.length}</span>${un.some(x=>!x[4])&&slPick==null?'<button class="tlink" id="tAll" style="padding:0">Slot all</button>':''}${slPick!=null?'<button class="tlink" id="tCancel" style="padding:0">Cancel</button>':''}</div><div class="trow"><button class="tchip2 add" id="tAdd">+ Add</button>${un.map(x=>`<button class="tchip2${x[4]?' done':''}${THREE.indexOf(x)===slPick?' pick':''}" data-e="${THREE.indexOf(x)}" style="--c:${PCOL[x[1]]}">${x[0]} · ${dlab(x[3])}</button>`).join('')}</div>`;
+let planMode='day',pdPick=null,ad=null,chTrait=null;
+const TMRD=()=>addDays(TODAY,1);
+/* tomorrow's plan lives in D.tomorrow until the day starts; it opens prefilled from the draft */
+function draftFor(date){PFT=date;buildDraft();return {items:DRAFT.map(d=>[d[1],d[2],d[5],d[4],false,d[7]??null,null,d[6]||null]),quests:(()=>{const q=DALT.find(x=>!QUESTS.some(y=>y.q===x[0]))||DALT[0];return q?[q[1]]:[]})()}}
+function TPLAN(){let T=D.tomorrow;if(!T||T.date!==TMRD()){const x=draftFor(TMRD());T=D.tomorrow={date:TMRD(),items:x.items,quests:x.quests,draft:true};save()}if(!T.quests)T.quests=T.quest?[T.quest]:[];return T}
+function prefill(date){const x=draftFor(date);x.items.forEach(i=>{if(!THREE.some(t=>t[0]===i[0]&&!t[4]))THREE.push(i)});x.quests.forEach(q=>{if(!QUESTS.some(y=>y.q===q.q))QUESTS.splice(qi,0,q)});sortPlan();renderQuest();save()}
+const PD=()=>planMode==='tmr'?{L:TPLAN().items,C:[],from:H0,Q:TPLAN().quests,q0:0}:{L:THREE,C:CAL,from:Math.ceil(nowH()*4)/4,Q:QUESTS,q0:qi};
+function gaps(){const {L,C,from}=PD(),busy=[...C.map(c=>[c[1],c[1]+c[2]]),...L.filter(t=>t[2]!=null).map(t=>[t[2],t[2]+Math.max(.25,t[3])])].sort((a,b)=>a[0]-b[0]);
+  const out=[];let t=Math.max(H0,from);busy.forEach(([a,b])=>{if(a-t>=.25)out.push([t,a]);t=Math.max(t,b)});if(H1-t>=.25)out.push([t,H1]);return out}
+function renderPlan(){NOW=nowH();const tm=planMode==='tmr',{L,C,Q,q0}=PD();if(L===THREE)sortPlan();else L.sort((a,b)=>(a[2]??99)-(b[2]??99));
+  $('#planDate').textContent=fmtDay(tm?TMRD():TODAY);$('#weekDate').textContent='Week of '+fmtDay(weekStart(TODAY)).replace(/^\w+ /,'');
+  $('#pdChal').innerHTML=Q.map((q,i)=>`<button class="chc${i<q0?' dn':''}" data-cx="${i}"><span>${q.q}</span><i>${i<q0?'✓':'✕'}</i></button>`).join('')+`<button class="chc add" id="chAdd">+ Challenge</button>`;
+  const un=L.filter(x=>x[2]==null&&!x[4]);
+  if(pdPick!=null&&(!L[pdPick]||L[pdPick][2]!=null))pdPick=null;
+  $('#pdUn').innerHTML=un.length?`<div class="chrow"><span class="lab" style="color:var(--muted);align-self:center">${pdPick!=null?'Tap a + to place':'Unslotted'}</span>${un.map(x=>{const k=L.indexOf(x);return `<button class="unc${pdPick===k?' on':''}" data-pk="${k}" style="--c:${PCOL[x[1]]}">${x[0]} · ${dlab(x[3])}</button>`}).join('')}</div>`:'';
   let t='';for(let h=H0;h<H1;h++)t+=`<div class="hr"><span>${h%12||12}${h<12?'a':'p'}</span></div>`;
-  CAL.forEach(([n,h,d])=>t+=`<div class="ev cal${d<=.5?' sm':''}" style="top:${6+(h-H0)*PX+2}px;height:${d*PX-4}px">${n}<small> Calendar</small></div>`);
-  THREE.filter(x=>x[2]!=null).forEach(([n,p,h,d,done,a],_,__,k=THREE.findIndex(y=>y[0]===n&&y[2]===h))=>t+=`<div class="ev${done?' done':''}${d<=.5?' sm':''}" data-k="${k}" style="top:${6+(h-H0)*PX+2}px;height:${Math.max(.5,d)*PX-4}px;background:${PCOL[p]};color:${p==='Soul'?'var(--ink)':'#fff'};${done?'opacity:.45;text-decoration:line-through':''}"><span class="evn"><i class="evc"></i>${n}</span><small>${a!=null?axes[a].it[0]:p}</small></div>`);
-  if(NOW>=H0&&NOW<=H1)t+=`<div class="now" style="top:${6+(NOW-H0)*PX}px"></div>`;
-  if(slPick!=null){const x=THREE[slPick];gapStarts(slPick,x[3]).forEach(h=>t+=`<button class="gh" data-h="${h}" style="--c:${PCOL[x[1]]};top:${6+(h-H0)*PX+2}px;height:${Math.max(.5,x[3])*PX-4}px">+ ${hl(h)}</button>`)}
-  $('#timeline').innerHTML=t;
-  if(slPick!=null){const g=$('#timeline .gh');if(g)$('#timeline').scrollTo({top:g.offsetTop-60,behavior:'smooth'})}
-  $$('#timeline .gh').forEach(b=>b.onclick=()=>{const k=slPick,h=+b.dataset.h;THREE[k][2]=h;slPick=null;renderPlan();renderHome();toast(`${THREE[k][0]} · ${hl(h)}`)});
-  {const a=$('#tAll');if(a)a.onclick=slotAll;const c=$('#tCancel');if(c)c.onclick=()=>{slPick=null;renderPlan()}}
-  $('#tAdd').onclick=()=>openSlot(-1);$$('#planThree [data-e]').forEach(b=>b.onclick=()=>{const k=+b.dataset.e;if(THREE[k][4])return openSlot(k);slPick=slPick===k?null:k;renderPlan()});
-  $$('#timeline .ev[data-k]').forEach(b=>b.onclick=e=>{const k=+b.dataset.k;if(e.target.closest('.evc')){togglePlan(k);renderPlan();renderHome()}else openSlot(k)});
+  C.forEach(([n,h,d])=>t+=`<div class="ev cal${d<=.5?' sm':''}" style="top:${6+(h-H0)*PX+2}px;height:${d*PX-4}px">${n}<small> Calendar</small></div>`);
+  L.forEach((x,k)=>{const [n,p,h,d,done,a]=x;if(h==null)return;t+=`<div class="ev${done?' done':''}${d<=.5?' sm':''}" data-k="${k}" style="top:${6+(h-H0)*PX+2}px;height:${Math.max(.25,d)*PX-4}px;background:${PCOL[p]};color:#fff;${done?'opacity:.45;text-decoration:line-through':''}"><span class="evn">${tm?'':'<i class="evc"></i>'}${n}</span><small>${dlab(d)}</small></div>`});
+  gaps().forEach(([a,b])=>{const len=b-a,hh=Math.min(len,3);t+=`<button class="gap2${pdPick!=null?' hot':''}" data-g="${a}|${b}" style="top:${6+(a-H0)*PX+2}px;height:${hh*PX-4}px"><b>+</b>${len>=.5?`<span>Free · ${len>=1?Math.round(len*4)/4+'h':Math.round(len*60)+' min'}</span>`:''}</button>`});
+  if(!tm&&NOW>=H0&&NOW<=H1)t+=`<div class="now" style="top:${6+(NOW-H0)*PX}px"></div>`;
+  const tl=$('#timeline'),keep=tl.dataset.m===planMode?tl.scrollTop:null;tl.innerHTML=t;tl.dataset.m=planMode;
+  tl.scrollTop=keep!=null?keep:tm?0:Math.max(0,(NOW-H0-1)*PX);
+  $('#pdStake').innerHTML=`<span>Win 5 of 7 → <b>${WSP}</b></span><span>Miss → 🎲 ${FFT[ffSize(missRun+1)]} forfeit</span>`;
+  $('#pdOk').style.display=tm?'':'none';
   $('#wkSpoil').innerHTML=`<span class="lab">Win 5 of 7 days</span><div class="row"><b>${WSP}</b><span class="n" style="font-size:22px">${weekWins()}/5</span></div><div class="bar"><i style="width:${Math.min(100,weekWins()/5*100)}%;background:var(--gold)"></i></div>`;$('#hSpoil').textContent=HSP;
   if(D.hero){$('#hTitle').textContent=D.hero.text;$('#hTitle2').textContent=D.hero.text;$('#hPil').textContent=`Hero of the week · ${D.hero.pil} · ${D.hero.done?'done':D.hero.days.length+'/7'}`}
   const WG=D.weekGoals&&D.weekGoals.week===weekStart(TODAY)?D.weekGoals.goals.map(g=>[g.name,g.p,goalProg(g),g.k]):[];
@@ -686,7 +694,7 @@ function renderHome(){const el=$('#dayTop');if(!el)return;NOW=nowH();day1=!Objec
   el.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{homeF=homeF===b.dataset.f?null:b.dataset.f;renderHome()});
   const over=THREE.filter(t=>!t[4]&&t[2]!=null&&t[2]+t[3]<=NOW),rest=THREE.filter(t=>!t[4]&&!over.includes(t)).sort((a,b)=>(a[2]??99)-(b[2]??99)),up=homeF?THREE.filter(t=>homeF==='Hero'?t[6]==='hero':t[1]===homeF).sort((a,b)=>(a[4]-b[4])||((a[2]??99)-(b[2]??99))):[...over,...rest];
   const U=$('#homeUp');
-  U.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">${homeF?`<span class="lab" style="color:${homeF==='Hero'?'var(--green)':PCOL[homeF]}">${homeF==='Hero'?'Hero · '+(D.hero?D.hero.text:''):homeF+' tasks'}</span><button class="lab hupe" id="hupX">Show all ✕</button>`:`<span class="lab">Up next${dayWon?' · <span style="color:var(--green)">Day won</span>':` · <span style="color:var(--muted)">Win needs ${winNeeds()}</span>`}</span><button class="lab hupe" data-go="plan">Edit ›</button>`}</div>`+(!homeF&&!THREE.some(t=>t[6]!=='hero')?`<div class="empt"><b>${day1?'Day 1. Let\'s light it.':'Nothing planned yet'}</b><span>${day1?'Plan today in about a minute. One block per pillar wins the day.':'Take the draft or build your own. One block per pillar wins the day.'}</span><button class="btn" data-go="planflow" style="padding:12px 18px">${day1?'Plan today':'Use today\'s draft'}</button></div><div class="tlist" id="homeList">`+up.map(t=>todoRow(t)).join(''):'<div class="tlist" id="homeList">'+(up.length?up.map(t=>todoRow(t).replace('class="chk','class="chk'+(over.includes(t)?' late':''))).join(''):(!homeF&&!THREE.length?`<div class="empt"><b>${day1?'Day 1. Let\'s light it.':'Nothing planned yet'}</b><span>${day1?'Plan today in about a minute. One block per pillar wins the day.':'Take the draft or build your own. One block per pillar wins the day.'}</span><button class="btn" data-go="planflow" style="padding:12px 18px">${day1?'Plan today':'Use today\'s draft'}</button></div>`
+  U.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">${homeF?`<span class="lab" style="color:${homeF==='Hero'?'var(--green)':PCOL[homeF]}">${homeF==='Hero'?'Hero · '+(D.hero?D.hero.text:''):homeF+' tasks'}</span><button class="lab hupe" id="hupX">Show all ✕</button>`:`<span class="lab">Up next${dayWon?' · <span style="color:var(--green)">Day won</span>':` · <span style="color:var(--muted)">Win needs ${winNeeds()}</span>`}</span><button class="lab hupe" data-go="plan">Edit ›</button>`}</div>`+(!homeF&&!THREE.some(t=>t[6]!=='hero')?`<div class="empt"><b>${day1?'Day 1. Let\'s light it.':'Nothing planned yet'}</b><span>${day1?'Plan today in about a minute. One block per pillar wins the day.':'Take the draft or build your own. One block per pillar wins the day.'}</span><button class="btn" data-go="plantoday" style="padding:12px 18px">${day1?'Plan today':'Use today\'s draft'}</button></div><div class="tlist" id="homeList">`+up.map(t=>todoRow(t)).join(''):'<div class="tlist" id="homeList">'+(up.length?up.map(t=>todoRow(t).replace('class="chk','class="chk'+(over.includes(t)?' late':''))).join(''):(!homeF&&!THREE.length?`<div class="empt"><b>${day1?'Day 1. Let\'s light it.':'Nothing planned yet'}</b><span>${day1?'Plan today in about a minute. One block per pillar wins the day.':'Take the draft or build your own. One block per pillar wins the day.'}</span><button class="btn" data-go="plantoday" style="padding:12px 18px">${day1?'Plan today':'Use today\'s draft'}</button></div>`
     :`<div class="empt" style="padding:6px 0;gap:8px"><span>${homeF?'Nothing planned for '+homeF+' today.':dayWon?'All done. Day won.':'All done. Win needs '+winNeeds()+'.'}</span>${homeF?'':`<button class="btn" data-go="${nowH()>=18?'eve':'planflow'}" style="padding:12px 18px">${nowH()>=18?'Close the day':'Plan tomorrow'}</button>`}</div>`)))+`</div>`;
   U.querySelectorAll('.chk>button:first-child').forEach(b=>b.onclick=()=>{const k=+b.dataset.k;b.parentElement.classList.add('done');togglePlan(k);setTimeout(renderHome,650)});
   U.querySelectorAll('button.ttime').forEach(b=>b.onclick=()=>openSlot(+b.dataset.e));
@@ -724,6 +732,56 @@ function wonMoment(){const f=$('#wonfx');f.innerHTML=`<div class="cond">Day won<
   b.animate([{transform:'translate(-50%,-50%) scale(0)'},{transform:'translate(-50%,-50%) scale(1)'}],{duration:T_MOM,easing:EZ,fill:'forwards'});
   setTimeout(()=>{f.classList.add('on');b.animate([{opacity:1},{opacity:0}],{duration:T_PAGE,easing:EZ,fill:'forwards'}).onfinish=()=>b.remove()},T_MOM*.7)}
 function checkXP(n,label){const d=forceDrop||Math.random()<.1;forceDrop=false;$('#xpchip').classList.toggle('drop',d);gainXP(d?n*2:n,d?'Ember drop ×2':label)}
+const hm=h=>hl(h).replace(/([ap])$/,'$1m').replace(/(\d)(am|pm)/,'$1 $2');
+function areaIdeas(p,a){if(p==='Mind')return (MTASK[a]||[]).map(x=>x[0]);
+  if(p==='Body'){if(a==='Strength')return Object.values(BODYT.Strength).flat().map(x=>x[0]);for(const c of Object.values(BODYT))if(c[a])return c[a].map(x=>x[0])}return []}
+function bodyCat(a){if(a==='Strength')return 'Strength';for(const [c,o] of Object.entries(BODYT))if(o[a])return c;return a}
+function openAdd(o){ad=o;renderAdd();openSheet('add2')}
+function renderAdd(){const o=ad,max=o.b!=null?o.b-o.h:1,areas=o.p==='Task'?[]:(obSel[o.p]||[]),ideas=o.area?[...new Set(areaIdeas(o.p,o.area))].slice(0,8):[],ok=o.p&&(o.area||o.p==='Task');
+  $('#adBody').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:baseline"><div class="cond" style="font-size:40px;line-height:.9">${o.k!=null?'Edit':'Add'}</div><span class="lab" style="color:var(--muted)">${o.h!=null?hm(o.h):'Unslotted'}</span></div>
+  <div class="adseg">${[['Mind','Mind'],['Body','Body'],['Task','To-do']].map(([v,l])=>`<button data-ap="${v}" class="${o.p===v?'on':''}" style="--c:${PCOL[v]}">${l}</button>`).join('')}</div>
+  ${o.p&&o.p!=='Task'?(areas.length?`<div class="obch">${areas.map(a=>`<button data-aa="${a}" class="${o.area===a?'on':''}" style="--c:${PCOL[o.p]}">${a}</button>`).join('')}</div>`:'<span style="font-size:13px;color:var(--muted)">Pick your areas in Settings › Areas.</span>'):''}
+  ${ok?`${ideas.length?`<div class="slt">${ideas.map(n=>`<button data-al="${n.replace(/"/g,'&quot;')}" class="${o.label===n?'on':''}">${n}</button>`).join('')}</div>`:''}<input id="adLbl" class="slin" placeholder="${o.p==='Task'?'What needs doing?':'Label · optional'}" value="${o.label&&!ideas.includes(o.label)?o.label.replace(/"/g,'&quot;'):''}" autocomplete="off">
+  <div class="slt">${DUR.map(([d,l])=>`<button data-ad="${d}" class="${d===o.d?'on':''}" ${d>max+.001?'disabled style="opacity:.3"':''}>${l}</button>`).join('')}</div>`:''}
+  <div style="display:flex;gap:8px">${o.k!=null?'<button class="btn" id="adDel" style="background:var(--bone);color:var(--ink);padding:16px 20px">Remove</button>':''}<button class="btn wide" id="adGo" style="flex:1" ${ok?'':'disabled'}>${o.k!=null?'Save':'Add'}${ok?` · ${dlab(o.d)}`:''}</button></div>`}
+$('#adBody').onclick=e=>{const o=ad,t=e.target;let b;
+  if(b=t.closest('[data-ap]')){o.p=b.dataset.ap;o.area=null;o.label=null;renderAdd();return}
+  if(b=t.closest('[data-aa]')){o.area=b.dataset.aa;o.label=null;renderAdd();return}
+  if(b=t.closest('[data-al]')){o.label=o.label===b.dataset.al?null:b.dataset.al;renderAdd();return}
+  if(b=t.closest('[data-ad]')){if(b.disabled)return;o.d=+b.dataset.ad;renderAdd();return}
+  const L=PD().L;
+  if(t.id==='adDel'){if(L===THREE&&L[o.k][4])togglePlan(o.k);L.splice(o.k,1);save();closeSheet();renderPlan();renderHome();toast('Removed');return}
+  if(t.id==='adGo'){if(t.disabled)return;const own=(($('#adLbl')||{}).value||'').trim(),lab=own||o.label;
+    const n=o.p==='Task'?(own||'To-do'):lab&&areaIdeas(o.p,o.area).includes(lab)&&o.p==='Body'?lab:[o.area,lab].filter(Boolean).join(' · ');
+    const ai=o.p==='Mind'?axes.findIndex(x=>x.it[0]===o.area):-1,meta=o.p==='Body'?{c:bodyCat(o.area),a:o.area}:null;
+    if(o.k!=null){const x=L[o.k];x[0]=n;x[1]=o.p;x[3]=o.d;x[5]=ai>=0?ai:null;if(x[6]!=='hero')x[7]=meta}
+    else L.push([n,o.p,o.h,o.d,false,ai>=0?ai:null,null,meta]);
+    save();closeSheet();renderPlan();renderHome();toast(o.h!=null?`${n} · ${hm(o.h)}`:'Added')}};
+function parseArea(n,p){const ar=(obSel[p]||[]).find(a=>n===a||n.startsWith(a+' · '));if(ar)return [ar,n.slice(ar.length+3)||null];
+  const all=(obSel[p]||[]).find(a=>areaIdeas(p,a).includes(n));return all?[all,n]:[null,n]}
+$('#timeline').onclick=e=>{const g=e.target.closest('.gap2'),ev=e.target.closest('.ev[data-k]'),L=PD().L;
+  if(g){const [a,b]=g.dataset.g.split('|').map(Number);
+    if(pdPick!=null){const x=L[pdPick];x[2]=a;x[3]=Math.min(x[3],b-a)||x[3];pdPick=null;save();renderPlan();renderHome();toast(`${x[0]} · ${hm(a)}`);return}
+    openAdd({h:a,b,p:null,area:null,label:null,d:Math.min(.5,b-a)>=.25?Math.min(.5,b-a):.25});return}
+  if(ev){const k=+ev.dataset.k,x=L[k];
+    if(e.target.closest('.evc')){togglePlan(k);renderPlan();renderHome();return}
+    const [ar,lb]=x[1]==='Task'?[null,x[0]]:parseArea(x[0],x[1]);const nx=gaps().find(([a])=>a>=x[2]+x[3]-.001);
+    openAdd({k,h:x[2],b:Math.max(x[2]+1,nx&&Math.abs(nx[0]-(x[2]+x[3]))<.01?nx[1]:x[2]+x[3]),p:x[1]==='Soul'?'Mind':x[1],area:ar,label:lb,d:x[3]})}};
+$('#pdUn').onclick=e=>{const b=e.target.closest('[data-pk]');if(!b)return;const k=+b.dataset.pk;pdPick=pdPick===k?null:k;renderPlan()};
+$('#pdChal').onclick=e=>{const x=e.target.closest('[data-cx]');
+  if(x){const {Q,q0}=PD(),i=+x.dataset.cx;if(e.target.tagName==='I'&&i>=q0){Q.splice(i,1);save();renderPlan();if(Q===QUESTS)renderQuest()}return}
+  if(e.target.closest('#chAdd'))openChal()};
+function openChal(){if(!chTrait||!POOLS[chTrait])chTrait=traitKey(weakest());renderChal();openSheet('chal')}
+function renderChal(){const Q=PD().Q;$('#chTr').innerHTML=Object.keys(POOLS).map(t=>`<button data-ct="${t}" class="${t===chTrait?'on':''}" style="--c:var(--gold);${t===chTrait?'color:var(--ink)':''}">${t}</button>`).join('');
+  $('#chList').innerHTML=POOLS[chTrait].map(([z,q])=>{const on=Q.some(y=>y.q===q);return `<button data-cq="${q.replace(/"/g,'&quot;')}" class="${on?'on':''}"><span>${q}</span><small>${on?'✓ Added':{S:'Small',M:'Medium',L:'Large'}[z]}</small></button>`}).join('')}
+$('#chTr').onclick=e=>{const b=e.target.closest('[data-ct]');if(b){chTrait=b.dataset.ct;renderChal()}};
+$('#chList').onclick=e=>{const b=e.target.closest('[data-cq]');if(!b)return;const {Q,q0}=PD(),q=b.dataset.cq,i=Q.findIndex(y=>y.q===q);
+  if(i>=0){if(i<q0)return toast('Already done today');Q.splice(i,1)}else Q.push(findQuest(q));save();renderChal()};
+$('#chDone').onclick=()=>{closeSheet();renderPlan();renderQuest()};
+$('#pdStake').onclick=()=>openStakes();
+$('#pdOk').onclick=()=>{if(planMode!=='tmr'){go('back');return}const wc=closing;const T=TPLAN();T.draft=false;
+  const first=!DAY().planned;DAY().planned=true;save();endClose();if(first)checkXP(20,'Planned');setTimeout(()=>toast('Tomorrow is set'),wc?900:1500);
+  if(wc){planMode='day';go('today')}else $$('#planSeg button')[0].click()};
 function togglePlan(k){const t=THREE[k];t[4]=!t[4];setTimeout(checkWon,0);
   if(t[6]==='hero'&&D.hero){const H=D.hero;H.days=H.days.filter(x=>x!==TODAY);if(t[4])H.days.push(TODAY)}
   if(t[1]==='Body'&&t[7]&&!t[7].w)logBody(t[7].c,t[7].a,(t[4]?1:-1)*Math.round(t[3]*60));
@@ -735,7 +793,7 @@ function renderMplan(){const el=$('#mplan');if(!el)return;const all=THREE.filter
   $$('#mplan .chk > button').forEach(b=>b.onclick=()=>{const k=+b.dataset.k,t=THREE[k],a=t[5],ax=axes[a],from=ax.it[1];togglePlan(k);const to=ax.it[1];ax.it[1]=from;sel=null;focus=axes[a].ci;const t1=performance.now();
     (function st(n){const q=Math.min(1,(n-t1)/700),e=1-Math.pow(1-q,3);ax.it[1]=from+(to-from)*e;radar();if(q<1&&!reduce)requestAnimationFrame(st);else{ax.it[1]=to;radar();renderMplan()}})(t1)})}
 function fmt(h){const hh=Math.floor(h),m=Math.round((h-hh)*60);return `${hh%12||12}${m?':'+String(m).padStart(2,'0'):''}${hh<12?'am':'pm'}`}
-$('#planSeg').onclick=e=>{const b=e.target.closest('[data-p]');if(!b)return;$$('#planSeg button').forEach(x=>x.classList.toggle('on',x===b));const w=b.dataset.p==='week';$('#planDay').style.display=w?'none':'flex';$('#planWeek').style.display=w?'flex':'none';setNotes(w?'planweek':'plan')};
+$('#planSeg').onclick=e=>{const b=e.target.closest('[data-p]');if(!b)return;$$('#planSeg button').forEach(x=>x.classList.toggle('on',x===b));const w=b.dataset.p==='week';if(!w){planMode=b.dataset.p;pdPick=null;renderPlan()}else renderPlan();$('#planDay').style.display=w?'none':'flex';$('#planWeek').style.display=w?'flex':'none';setNotes(w?'planweek':'plan')};
 /* planning flow */
 const SUGG={Goals:[['Train: Pull day','Body'],['Write 25 min','Mind'],['Courage quest','Soul']],Habits:[['Read 30 min','Mind'],['Run 3 miles','Body'],['Meditate 10 min','Mind']],Quests:[['Have the conversation you\'ve avoided','Soul'],['Tell someone what they did well','Soul']]};
 let pfSel=[];const FREE=[8,12,13.5,16,18,19.5,20.5];
@@ -899,7 +957,7 @@ function saveNow(){clearTimeout(saveT);if(!D)return;
 function restoreToday(t){THREE.length=0;(t.items||[]).forEach(x=>THREE.push(x));FMEALS.forEach(m=>FLOG[m]=(t.flog&&t.flog[m])||[]);for(const k in FCHK)delete FCHK[k];Object.assign(FCHK,t.fchk||{});
   water=t.water||0;QUESTS.length=0;(t.quests||[]).forEach(q=>QUESTS.push(q));qi=t.qi||0;qdone=t.qdone||0;dayWon=!!t.won}
 function newDay(){THREE.length=0;FMEALS.forEach(m=>FLOG[m]=[]);for(const k in FCHK)delete FCHK[k];water=0;DONE_T.clear();QUESTS.length=0;qi=0;qdone=0;dayWon=false;
-  const T=D.tomorrow;if(T&&T.date===TODAY){T.items.forEach(x=>THREE.push(x));if(T.quest)QUESTS.push(T.quest)}D.tomorrow=null;
+  const T=D.tomorrow;if(T&&T.date===TODAY){T.items.forEach(x=>THREE.push(x));(T.quests||(T.quest?[T.quest]:[])).forEach(q=>QUESTS.push(q))}D.tomorrow=null;
   if(!QUESTS.length)QUESTS.push(questFor(weakest()));
   ensureHero();if(D.hero&&!D.hero.done&&!THREE.some(t=>t[6]==='hero'))THREE.push([`Hero: ${D.hero.short}`,D.hero.pil,null,.5,false,null,'hero']);sortPlan()}
 /* close out every day since the last one: won keeps the streak, a freeze covers one miss, otherwise the streak resets and a forfeit is rolled */
