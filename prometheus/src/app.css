@@ -8,3 +8,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .view.full{padding-bottom:calc(20px + env(safe-area-inset-bottom))}
 .nav{bottom:calc(14px + env(safe-area-inset-bottom))}
 .bsheet{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+/* off-screen sheets and banners shouldn't cast shadows onto the edges */
+.bsheet:not(.on),#notif:not(.on){box-shadow:none}
+#notif{top:calc(env(safe-area-inset-top) + 10px)}
+#xpchip{top:calc(env(safe-area-inset-top) + 14px)}
+#toast{bottom:calc(96px + env(safe-area-inset-bottom))}
