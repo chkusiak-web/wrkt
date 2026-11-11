@@ -11,6 +11,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,json}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        // Prometheus lives at /wrkt/prometheus/ with its own service worker
+        navigateFallbackDenylist: [/^\/wrkt\/prometheus/],
         // the font, so the app looks right offline too
         runtimeCaching: [
           {

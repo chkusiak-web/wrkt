@@ -23,9 +23,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            prometheus/package-lock.json
       - run: npm ci
       - run: npm run build
       - run: cp dist/index.html dist/404.html
+      - name: Build Prometheus
+        working-directory: prometheus
+        run: npm ci && npm run build
+      - run: cp -r prometheus/dist dist/prometheus
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
