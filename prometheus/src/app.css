@@ -1,5 +1,6 @@
 /* App shell: the prototype's phone becomes the whole screen. */
-html,body{height:100%;margin:0;overflow:hidden;background:var(--bone);overscroll-behavior:none}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--pagebg,var(--bone));overscroll-behavior:none}
+input,textarea,select{font-size:16px!important}
 body{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
 input,textarea{-webkit-user-select:text;user-select:text}
 .phone{width:100%;max-width:520px;height:100vh;height:100dvh;margin:0 auto;border:0;border-radius:0;box-shadow:none}
@@ -13,3 +14,4 @@ input,textarea{-webkit-user-select:text;user-select:text}
 #notif{top:calc(env(safe-area-inset-top) + 10px)}
 #xpchip{top:calc(env(safe-area-inset-top) + 14px)}
 #toast{bottom:calc(96px + env(safe-area-inset-bottom))}
+.rrest{padding-top:max(54px,calc(env(safe-area-inset-top) + 12px))}
