@@ -183,12 +183,14 @@
 
     <!-- PLAN -->
     <section class="view full" id="v-plan">
-      <div class="top"><button class="x" data-go="today">← Today</button><div class="seg" id="planSeg"><button class="on" data-p="day">Day</button><button data-p="week">Week</button></div></div>
+      <div class="top"><button class="x" data-go="back">←</button><div class="seg" id="planSeg"><button class="on" data-p="day">Today</button><button data-p="tmr">Tomorrow</button><button data-p="week">Week</button></div></div>
       <div id="planDay" style="display:flex;flex-direction:column;gap:10px;min-height:0;flex:1">
-        <div style="display:flex;justify-content:space-between;align-items:flex-end"><div class="cond" style="font-size:44px;line-height:.9" id="planDate">Today</div><button class="logp" data-go="planflow">Plan tomorrow</button></div>
-        <div class="pact" id="planPact"></div>
-        <div id="planThree" class="tray"></div>
+        <div class="cond" style="font-size:44px;line-height:.9" id="planDate">Today</div>
+        <div class="chrow" id="pdChal"></div>
+        <div id="pdUn"></div>
         <div class="tl" id="timeline"></div>
+        <button class="pdst" id="pdStake"></button>
+        <button class="btn wide" id="pdOk" style="display:none">Looks good</button>
       </div>
       <div id="planWeek" style="display:none;flex-direction:column;gap:10px;min-height:0;flex:1;overflow:auto">
         <div class="cond" style="font-size:40px;line-height:.9" id="weekDate">This week</div>
@@ -409,6 +411,8 @@
       </div>
     </div>
 
+    <div class="bsheet" id="sh-add2"><div class="grab"></div><div id="adBody" style="display:flex;flex-direction:column;gap:12px"></div></div>
+    <div class="bsheet" id="sh-chal"><div class="grab"></div><div class="cond" style="font-size:40px;line-height:.9">Challenges</div><span style="font-size:13px;color:var(--muted);margin-top:-6px">All day, not on the calendar. Add as many as you want.</span><div class="obch" id="chTr"></div><div id="chList" class="frows" style="max-height:330px;overflow:auto"></div><button class="btn wide" id="chDone">Done</button></div>
     <div class="bsheet" id="sh-slot">
       <div class="grab"></div>
       <div class="cond" style="font-size:40px;line-height:.9" id="slTitle">Add to today</div>
